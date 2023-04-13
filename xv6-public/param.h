@@ -12,3 +12,11 @@
 #define NBUF         (MAXOPBLOCKS*3)  // size of disk block cache
 #define FSSIZE       1000  // size of file system in blocks
 
+#define NMLFQLEVEL    3  // number of mlfq level
+#define MLFQL0TIMEQ   4  // mlfq level 0 time quantum
+#define MLFQL0TIMEQ   6  // mlfq level 0 time quantum
+#define MLFQL0TIMEQ   8  // mlfq level 0 time quantum
+
+#define MLFQMAXPRIORIY 3 // mlfq max priority
+
+#define NULL          0
