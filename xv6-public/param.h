@@ -14,8 +14,11 @@
 
 #define NMLFQLEVEL    3  // number of mlfq level
 #define MLFQL0TIMEQ   4  // mlfq level 0 time quantum
-#define MLFQL0TIMEQ   6  // mlfq level 0 time quantum
-#define MLFQL0TIMEQ   8  // mlfq level 0 time quantum
+#define MLFQL1TIMEQ   6  // mlfq level 0 time quantum
+#define MLFQL2TIMEQ   8  // mlfq level 0 time quantum
+#define L0            0  // RR Scheduling
+#define L1            1  // RR Scheduling
+#define L2            2  // Priority Scheduling
 
 #define MLFQMAXPRIORIY 3 // mlfq max priority
 

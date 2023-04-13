@@ -51,13 +51,18 @@ struct proc {
   char name[16];               // Process name (debugging)
 
   // mlfq info
-  int level;                   // current mlfq level
-  int priority;
-  int time_quantum;            // max time quantum
-  int tick_left;               // left time quantum
+  struct {
+    int level;                   // current mlfq level
+    int tick_left;               // left time quantum
 
-  struct proc* next;
-  struct proc* prev;
+    struct proc* next;
+    struct proc* prev;
+
+    struct {
+      int pvalue;
+      int enter_id;
+    } priority;
+  } mlfq_info;
 };
 
 // Process memory is laid out contiguously, low addresses first:
