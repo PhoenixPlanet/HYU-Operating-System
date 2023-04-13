@@ -174,16 +174,16 @@ insert_queue(MLFQ* mlfq, struct proc* p, int level) {
   }
 
   // iterate queue(linked list)
-  // for (target_ptr = head; !found;) {
-  //   if (compare_priority(level, p, target_ptr->target_p) >= 0) { // priority of p is higher than iter target
-  //     qdata_ptr[idx].prev = target_ptr->prev;
-  //     qdata_ptr[idx].next = target_ptr - qdata_ptr;
+  for (target_ptr = head; !found;) {
+    if (compare_priority(level, p, target_ptr->target_p) >= 0) { // priority of p is higher than iter target
+      qdata_ptr[idx].prev = target_ptr->prev;
+      qdata_ptr[idx].next = target_ptr - qdata_ptr;
       
-  //     target_ptr->prev = idx;
+      target_ptr->prev = idx;
       
-  //     if (target_ptr->prev == -1) { // if prev is head
-  //       mlfq->head[level] = idx;
-  //     } 
-  //   }
-  // }
+      if (target_ptr->prev == -1) { // if prev is head
+        mlfq->head[level] = idx;
+      } 
+    }
+  }
 }
