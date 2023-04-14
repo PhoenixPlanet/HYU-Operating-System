@@ -10,6 +10,12 @@ struct sleeplock;
 struct stat;
 struct superblock;
 
+struct _QList;
+struct _MLFQ;
+
+typedef struct _QList QList;
+typedef struct _MLFQ MLFQ;
+
 // bio.c
 void            binit(void);
 struct buf*     bread(uint, uint);
@@ -120,6 +126,19 @@ void            userinit(void);
 int             wait(void);
 void            wakeup(void*);
 void            yield(void);
+
+// proc_mlfq.c
+void            init_mlfq(MLFQ*, struct proc*);
+int             compare_pvalue(int, int);
+int             compare_priority(struct proc*, struct proc*);
+void            push_first_elem(QList*, struct proc*);
+void            push_head(QList*, struct proc*);
+void            push_by_priority(QList*, struct proc*);
+struct proc*    pop_tail(QList*);
+void            insert_queue(MLFQ*, struct proc*, int, int, int);
+void            delete_from_queue(MLFQ*, struct proc*, int);
+int             get_able_queue(MLFQ*);
+struct proc*    mlfq_select_target(MLFQ*);
 
 // swtch.S
 void            swtch(struct context**, struct context*);
