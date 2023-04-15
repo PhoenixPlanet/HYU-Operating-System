@@ -5,6 +5,7 @@
 #include "mmu.h"
 #include "x86.h"
 #include "proc.h"
+#include "proc_mlfq.h"
 #include "spinlock.h"
 
 struct {
@@ -19,6 +20,8 @@ extern void forkret(void);
 extern void trapret(void);
 
 static void wakeup1(void *chan);
+
+MLFQ _mlfq = {.MAX_TIME_QUANTUM = {MLFQL0TIMEQ, MLFQL1TIMEQ, MLFQL2TIMEQ}};
 
 void
 pinit(void)
@@ -114,6 +117,7 @@ schedulerLock(int password) {
 
   acquire(&ptable.lock);
   scheduler_lock(&_mlfq, p);
+  p->state = RUNNABLE;
   sched();
   release(&ptable.lock);
 }
@@ -123,12 +127,13 @@ schedulerUnlock(int password) {
   struct proc* p = myproc();
 
   if (password != MLFQLOCKPASSWORD) {
-    print_mlfq_err(&_mlfq, p);
+    cprintf("pid: %d, time quantum: %d, level: %d\n", p->pid, _mlfq.global_tick, p->mlfq_info.level);
     exit();
   }
 
   acquire(&ptable.lock);
   scheduler_unlock(&_mlfq);
+  p->state = RUNNABLE;
   sched();
   release(&ptable.lock);
 }
@@ -221,6 +226,7 @@ userinit(void)
 
   p->state = RUNNABLE;
   insert_queue(&_mlfq, p, L0, TRUE, TRUE);
+  //cprintf("userinit %d\n", (&_mlfq));
 
   release(&ptable.lock);
 }
@@ -369,8 +375,8 @@ wait(void)
         p->killed = 0;
 
         p->mlfq_info.level = -1;
-        p->mlfq_info.next = NULL;
-        p->mlfq_info.prev = NULL;
+        p->mlfq_info.next = NULL_;
+        p->mlfq_info.prev = NULL_;
 
         p->state = UNUSED;
         release(&ptable.lock);
@@ -413,19 +419,28 @@ scheduler(void)
 
     p = mlfq_select_target(&_mlfq);
 
-    // Switch to chosen process.  It is the process's job
-    // to release ptable.lock and then reacquire it
-    // before jumping back to us.
-    c->proc = p;
-    switchuvm(p);
-    p->state = RUNNING;
+    if (p != NULL_) {
+      //cprintf("pid: %d, priority: %d\n", p->pid, p->mlfq_info.priority.pvalue);
+      // Switch to chosen process.  It is the process's job
+      // to release ptable.lock and then reacquire it
+      // before jumping back to us.
+      c->proc = p;
+      switchuvm(p);
+      p->state = RUNNING;
 
-    swtch(&(c->scheduler), p->context);
-    switchkvm();
+      swtch(&(c->scheduler), p->context);
+      switchkvm();
 
-    // Process is done running for now.
-    // It should have changed its p->state before coming back.
-    c->proc = 0;
+      // Process is done running for now.
+      // It should have changed its p->state before coming back.
+      c->proc = 0;
+    } 
+    // else {
+    //   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    //     if(p->state == RUNNABLE)
+    //       cprintf("%d\n", p->pid);
+    //   }
+    // }
 
     boost_check(&_mlfq);
 
@@ -468,10 +483,15 @@ sched(void)
 
 // Give up the CPU for one scheduling round.
 void
-yield(void)
+yield(int fromuser)
 {
   acquire(&ptable.lock);  //DOC: yieldlock
   myproc()->state = RUNNABLE;
+  if (fromuser) {
+    if (_mlfq.state == LOCKED) {
+      scheduler_unlock(&_mlfq);
+    }
+  }
   sched();
   release(&ptable.lock);
 }
