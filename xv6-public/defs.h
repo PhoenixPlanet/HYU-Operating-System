@@ -125,7 +125,7 @@ void            sleep(void*, struct spinlock*);
 void            userinit(void);
 int             wait(void);
 void            wakeup(void*);
-void            yield(void);
+void            yield(int);
 
 int             getLevel(void);
 void            setPriority(int, int);
@@ -134,7 +134,6 @@ void            schedulerLock(int);
 void            schedulerUnlock(int);
 
 // proc_mlfq.c
-extern MLFQ     _mlfq;
 void            print_mlfq_err(MLFQ*, struct proc*);
 void            print_p_info(struct proc*);
 void            init_mlfq(MLFQ*, struct proc*);
@@ -153,6 +152,7 @@ void            relocate_by_priority(MLFQ*, int, int);
 void            prirority_boost(MLFQ*);
 void            boost_check(MLFQ*);
 void            scheduler_lock(MLFQ*, struct proc*);
+void            scheduler_unlock(MLFQ*);
 void            check_lock_state_when_sched(MLFQ*, struct proc*);
 void            check_wakeup(MLFQ*, struct proc*);
 
