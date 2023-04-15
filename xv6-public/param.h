@@ -25,6 +25,6 @@
 
 #define MLFQLOCKPASSWORD 2019039843 // password for mlfq lock
 
-#define NULL          0
+#define NULL_         0
 #define TRUE          1
 #define FALSE         0
