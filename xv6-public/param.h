@@ -21,5 +21,10 @@
 #define L2            2  // Priority Scheduling
 
 #define MLFQMAXPRIORIY 3 // mlfq max priority
+#define MLFQBOOSTTIME 100 // mlfq boost time
+
+#define MLFQLOCKPASSWORD 2019039843 // password for mlfq lock
 
 #define NULL          0
+#define TRUE          1
+#define FALSE         0

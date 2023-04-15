@@ -10,7 +10,9 @@
 
 typedef enum {
   IDLE = 0,
-  LOCKED
+  LOCKED,
+  UNLOCK_REQUIRE,
+  LOCKED_SLEEPING
 } MLFQState;
 
 typedef struct _QList {
@@ -20,6 +22,7 @@ typedef struct _QList {
 
 typedef struct _MLFQ {
   const int MAX_TIME_QUANTUM[NMLFQLEVEL];
+  int global_tick;
 
   MLFQState state;                 // if scheduler locked(LOCKED) or not(IDLE)
   struct proc* ptable_ptr;         // implement queue as linked list
@@ -33,9 +36,29 @@ typedef struct _MLFQ {
 MLFQ _mlfq = {.MAX_TIME_QUANTUM = {MLFQL0TIMEQ, MLFQL1TIMEQ, MLFQL2TIMEQ}};
 
 void
+print_mlfq_err(MLFQ* mlfq, struct proc* p) {
+  cprintf(
+    "pid: %d, used time quantum: %d, level: %d\n", 
+    p->pid, 
+    mlfq->MAX_TIME_QUANTUM[p->mlfq_info.level] - p->mlfq_info.tick_left, 
+    p->mlfq_info.level
+  );
+}
+
+void
+print_p_info(struct proc* p) {
+  cprintf(
+    "pid: %d, time quantum left: %d, level: %d\n", 
+    p->pid, 
+    p->mlfq_info.tick_left, 
+    p->mlfq_info.level
+  );
+}
+
+void
 init_mlfq(MLFQ* mlfq, struct proc* ptable_procs) {
   int i;
-  struct proc* proc_ptr;
+  struct proc* iter_ptr;
   
   mlfq->state = IDLE;
   mlfq->ptable_ptr = ptable_procs;
@@ -47,10 +70,10 @@ init_mlfq(MLFQ* mlfq, struct proc* ptable_procs) {
     mlfq->sched_queue[i].tail = NULL;    // NULL when empty
   }
 
-  for (proc_ptr = mlfq->ptable_ptr; proc_ptr < &((mlfq->ptable_ptr)[NPROC]); proc_ptr++) {
-    proc_ptr->mlfq_info.prev = NULL;  // NULL when no prev (I'm the head element)
-    proc_ptr->mlfq_info.next = NULL;  // NULL when no next (I'm the tail element)
-    proc_ptr->mlfq_info.level = -1;   // -1 when has no head
+  for (iter_ptr = mlfq->ptable_ptr; iter_ptr < &((mlfq->ptable_ptr)[NPROC]); iter_ptr++) {
+    iter_ptr->mlfq_info.prev = NULL;  // NULL when no prev (I'm the head element)
+    iter_ptr->mlfq_info.next = NULL;  // NULL when no next (I'm the tail element)
+    iter_ptr->mlfq_info.level = -1;   // -1 when has no head
   }
 }
 
@@ -95,6 +118,8 @@ compare_priority(struct proc* lhs, struct proc* rhs) {
     );
 
     if (compare == 0) {
+      print_p_info(lhs);
+      print_p_info(rhs);
       panic("enter_id cannot be same");
     }
 
@@ -126,10 +151,28 @@ push_head(QList* queue, struct proc* p) {
   temp = queue->head;
   queue->head = p;
 
+  temp->mlfq_info.prev = p;
+
   p->mlfq_info.next = temp;
   p->mlfq_info.prev = NULL;
+}
+
+void push_tail(QList* queue, struct proc* p) {
+  struct proc* temp;
+
+  if (queue->head == NULL) {
+    push_first_elem(queue, p);
+
+    return;
+  }
+
+  temp = queue->tail;
+  queue->tail = p;
   
-  temp->mlfq_info.prev = p;
+  temp->mlfq_info.next = p;
+
+  p->mlfq_info.prev = temp;
+  p->mlfq_info.next = NULL;
 }
 
 void
@@ -167,11 +210,7 @@ push_by_priority(QList* queue, struct proc* p) {
   
   if (!found) {
     // insert to tail
-    temp = queue->tail;
-    temp->mlfq_info.next = p;
-    p->mlfq_info.prev = temp;
-    p->mlfq_info.next = NULL;
-    queue->tail = p;
+    push_tail(queue, p);
   }
 }
 
@@ -225,8 +264,6 @@ insert_queue(MLFQ* mlfq, struct proc* p, int level, int set_priority, int set_ti
   }
 }
 
-// must be called after the process become zombie or unused
-//
 // mlfq: target mlfq pointer
 // p: target process
 // keep_level: true(!= 0) or false(0). keep level value when true. if not, set it -1
@@ -237,10 +274,10 @@ delete_from_queue(MLFQ* mlfq, struct proc* p, int keep_level) {
   struct proc** head_ptr = &(mlfq->sched_queue[level].head);
   struct proc** tail_ptr = &(mlfq->sched_queue[level].tail);
 
-  if (keep_level) {
+  if (!keep_level) {
     p->mlfq_info.level = -1;
+    p->mlfq_info.tick_left = 0;
   }
-  p->mlfq_info.tick_left = 0;
 
   if (p->mlfq_info.next == NULL) { // if p is tail
     *(tail_ptr) = p->mlfq_info.prev;
@@ -279,11 +316,20 @@ mlfq_select_target(MLFQ* mlfq) {
   int target_level;
   struct proc* target_proc;
 
+  if (mlfq->state == UNLOCK_REQUIRE) {
+    panic("mlfq state is UNLOCK_REQUIRE");
+  }
+
+  if (mlfq->state == LOCKED) {
+    return mlfq->locked_proc;
+  }
+
   target_level = get_able_queue(mlfq);
   target_proc = pop_tail(&(mlfq->sched_queue[target_level]));
 
   if (target_proc->state != RUNNABLE) {
-    cprintf("Schedule target proc state was: %d, pid: %d", (int)RUNNABLE, target_proc->pid);
+    print_mlfq_err(mlfq, target_proc);
+    cprintf("Schedule target proc state was: %d", (int)target_proc->state);
     panic("Schedule target process was not runnable");
   }
 
@@ -293,15 +339,25 @@ mlfq_select_target(MLFQ* mlfq) {
 // if 
 void
 back_to_mlfq(MLFQ* mlfq, struct proc* p) {
+  if (mlfq->state == LOCKED) {
+    return;
+  }
+  
+  if (mlfq->state == UNLOCK_REQUIRE) {
+    push_tail(&(mlfq->sched_queue[L0]), p);
+    mlfq->state = IDLE;
+    return;
+  }
+
   if (p->state == RUNNABLE) {
     if (p->mlfq_info.tick_left == 0) {
-      cprintf("pid: %d", p->pid);
+      print_mlfq_err(mlfq, p);
       panic("Process already used all time quantum!");
     }
     
     (p->mlfq_info.tick_left)--;
     
-    if (p->mlfq_info.tick_left == 0) { // Used all time quantum
+    if (p->mlfq_info.tick_left == 0) { // Used all time quantum, move to lower queue
       if (p->mlfq_info.level == L0 || p->mlfq_info.level == L1) {
         (p->mlfq_info.level)++;
         insert_queue(mlfq, p, p->mlfq_info.level, FALSE, TRUE);
@@ -313,16 +369,16 @@ back_to_mlfq(MLFQ* mlfq, struct proc* p) {
         p->mlfq_info.tick_left = mlfq->MAX_TIME_QUANTUM[L2];
         push_by_priority(&(mlfq->sched_queue[L2]), p); 
       } else {
-        cprintf("pid: %d, level: %d", p->pid, p->mlfq_info.level);
+        print_mlfq_err(mlfq, p);
         panic("Process has wrong level!");
       }
-    } else { // time quantum has left
+    } else { // time quantum has left, push into same level queue
       if (p->mlfq_info.level == L0 || p->mlfq_info.level == L1) {
         push_head(&(mlfq->sched_queue[p->mlfq_info.level]), p);
       } else if (p->mlfq_info.level == L2) {
         push_by_priority(&(mlfq->sched_queue[L2]), p);
       } else {
-        cprintf("pid: %d, level: %d", p->pid, p->mlfq_info.level);
+        print_mlfq_err(mlfq, p);
         panic("Process has wrong level!");
       }
     }
@@ -330,6 +386,148 @@ back_to_mlfq(MLFQ* mlfq, struct proc* p) {
     return;
   }
 
-  cprintf("pid: %d, state: %d", p->pid, p->state);
+  print_mlfq_err(mlfq, p);
+  cprintf("state: %d", p->pid, p->state);
   panic("Process is not RUNNABLE");
+}
+
+void
+relocate_by_priority(MLFQ* mlfq, int pid, int priority) {
+  struct proc* iter_ptr;
+  struct proc* target_proc = NULL;
+  
+  for (iter_ptr = mlfq->ptable_ptr; iter_ptr < &((mlfq->ptable_ptr)[NPROC]); iter_ptr++) {
+    if (iter_ptr->pid == pid) {
+      target_proc = iter_ptr;
+      break;
+    }
+  }
+
+  if (target_proc == NULL) {
+    cprintf("pid: %d", pid);
+    panic("couldn't find the pid");
+  }
+
+  if (target_proc->state != RUNNABLE && target_proc->state != SLEEPING) {
+    print_mlfq_err(mlfq, target_proc);
+    panic("target proc not RUNNABLE or SLEEPING so couldn't relocate");
+  }
+
+  target_proc->mlfq_info.priority.pvalue = priority;
+
+  if (target_proc == mlfq->locked_proc && mlfq->state == LOCKED_SLEEPING) {
+    return;
+  }
+
+  if (target_proc->mlfq_info.level == L2 && target_proc->state == RUNNABLE) {
+    delete_from_queue(mlfq, target_proc, TRUE);
+    push_by_priority(&(mlfq->sched_queue[L2]), target_proc);
+  } 
+}
+
+void
+prirority_boost(MLFQ* mlfq) {
+  struct proc* target_proc;
+  struct proc* iter_ptr;
+
+  QList* L1Q_ptr = &(mlfq->sched_queue[L1]);
+  QList* L2Q_ptr = &(mlfq->sched_queue[L2]);
+
+  if (mlfq->state == LOCKED) {
+    mlfq->state = IDLE;
+    
+    target_proc = mlfq->locked_proc;
+    mlfq->locked_proc = NULL;
+
+    target_proc->mlfq_info.level = L0;
+
+    push_tail(&(mlfq->sched_queue[L0]), target_proc);
+  }
+
+  while (L1Q_ptr->head != NULL) {
+    target_proc = pop_tail(L1Q_ptr);
+    insert_queue(mlfq, target_proc, L0, TRUE, TRUE);
+  }
+
+  while (L2Q_ptr->head != NULL) {
+    target_proc = pop_tail(L2Q_ptr);
+    insert_queue(mlfq, target_proc, L0, TRUE, TRUE);
+  }
+
+  for (iter_ptr = mlfq->ptable_ptr; iter_ptr < &((mlfq->ptable_ptr)[NPROC]); iter_ptr++) {
+    if (iter_ptr->state == RUNNABLE) {
+      iter_ptr->mlfq_info.priority.pvalue = MLFQMAXPRIORIY;
+      iter_ptr->mlfq_info.tick_left = mlfq->MAX_TIME_QUANTUM[L0];
+    }
+  }
+}
+
+void 
+boost_check(MLFQ* mlfq) {
+  mlfq->global_tick++;
+
+  if (mlfq->global_tick >= 100) {
+    mlfq->global_tick = 0;
+    prirority_boost(mlfq);
+  }
+}
+
+//TODO: exit, sleep 할때도 자동 unlock 해줘야함
+void
+scheduler_lock(MLFQ* mlfq, struct proc* target_proc) {
+  if (mlfq->state == LOCKED) {
+    print_mlfq_err(mlfq, target_proc);
+    panic("mlfq is already locked");
+  }
+
+  mlfq->state = LOCKED;
+  mlfq->locked_proc = target_proc;
+}
+
+void
+scheduler_unlock(MLFQ* mlfq) {
+  struct proc* target_proc;
+
+  if (mlfq->state != LOCKED) {
+    panic("mlfq is not locked");
+  }
+  if (mlfq->locked_proc == NULL) {
+    panic("no process locked");
+  }
+
+  mlfq->state = UNLOCK_REQUIRE;
+
+  target_proc = mlfq->locked_proc;
+  mlfq->locked_proc = NULL;
+
+  target_proc->mlfq_info.priority.pvalue = MLFQMAXPRIORIY;
+  target_proc->mlfq_info.tick_left = mlfq->MAX_TIME_QUANTUM[L0];
+  target_proc->mlfq_info.level = L0;
+}
+
+void
+check_lock_state_when_sched(MLFQ* mlfq, struct proc* p) {
+  if (mlfq->state == LOCKED) {
+    if (p->state == SLEEPING) {
+      mlfq->state = LOCKED_SLEEPING;
+      return;
+    }
+
+    if (p->state == ZOMBIE) {
+      scheduler_unlock(mlfq);
+      return;
+    }
+  }
+}
+
+void
+check_wakeup(MLFQ* mlfq, struct proc* p) {
+  if (mlfq->state == LOCKED_SLEEPING) {
+    if (p == mlfq->locked_proc) {
+      mlfq->state = LOCKED;
+      return;
+    }
+  }
+
+  insert_queue(mlfq, p, p->mlfq_info.level, FALSE, TRUE);
 }

@@ -127,7 +127,16 @@ int             wait(void);
 void            wakeup(void*);
 void            yield(void);
 
+int             getLevel(void);
+void            setPriority(int, int);
+void            setPriority(int, int);
+void            schedulerLock(int);
+void            schedulerUnlock(int);
+
 // proc_mlfq.c
+extern MLFQ     _mlfq;
+void            print_mlfq_err(MLFQ*, struct proc*);
+void            print_p_info(struct proc*);
 void            init_mlfq(MLFQ*, struct proc*);
 int             compare_pvalue(int, int);
 int             compare_priority(struct proc*, struct proc*);
@@ -139,6 +148,13 @@ void            insert_queue(MLFQ*, struct proc*, int, int, int);
 void            delete_from_queue(MLFQ*, struct proc*, int);
 int             get_able_queue(MLFQ*);
 struct proc*    mlfq_select_target(MLFQ*);
+void            back_to_mlfq(MLFQ*, struct proc*);
+void            relocate_by_priority(MLFQ*, int, int);
+void            prirority_boost(MLFQ*);
+void            boost_check(MLFQ*);
+void            scheduler_lock(MLFQ*, struct proc*);
+void            check_lock_state_when_sched(MLFQ*, struct proc*);
+void            check_wakeup(MLFQ*, struct proc*);
 
 // swtch.S
 void            swtch(struct context**, struct context*);
