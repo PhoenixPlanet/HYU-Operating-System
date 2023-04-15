@@ -192,6 +192,8 @@ UPROGS=\
 	_zombie\
 	_prac_user_app\
 	_prac2_usercall\
+	_proc_mlfq_test_a\
+	_usertests\
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)
@@ -252,6 +254,17 @@ qemu-nox-gdb: fs.img xv6.img .gdbinit
 	@echo "*** Now run 'gdb'." 1>&2
 	$(QEMU) -nographic $(QEMUOPTS) -S $(QEMUGDB)
 
+launch.json: launch.json.tmpl
+	mkdir -p .vscode
+	if [ -f .gdbinit ]; then rm .gdbinit; fi
+	sed -i "s/^source/# source/" ~/.gdbinit
+	sed "s/localhost:1234/localhost:$(GDBPORT)/" < $^ > .vscode/$@
+
+qemu-vscode: fs.img xv6.img launch.json
+	@echo "*** Now attach to qemu in the debug console ofb vscode." 1>&2
+	@echo "file kernel" > .gdbinit
+	$(QEMU) -serial mon:stdio $(QEMUOPTS) -S $(QEMUGDB)
+
 # CUT HERE
 # prepare dist for students
 # after running make dist, probably want to
@@ -261,7 +274,7 @@ qemu-nox-gdb: fs.img xv6.img .gdbinit
 EXTRA=\
 	mkfs.c ulib.c user.h cat.c echo.c forktest.c grep.c kill.c\
 	ln.c ls.c mkdir.c rm.c stressfs.c wc.c zombie.c\
-	printf.c umalloc.c prac_user_app.c prac2_usercall.c proc_mlfq_test_a.c\
+	printf.c umalloc.c prac_user_app.c prac2_usercall.c proc_mlfq_test_a.c usertests.c\
 	README dot-bochsrc *.pl toc.* runoff runoff1 runoff.list\
 	.gdbinit.tmpl gdbutil\
 
