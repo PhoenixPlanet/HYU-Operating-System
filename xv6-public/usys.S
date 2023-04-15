@@ -31,3 +31,7 @@ SYSCALL(sleep)
 SYSCALL(uptime)
 SYSCALL(myfunction)
 SYSCALL(yield) // system call for yield
+SYSCALL(getLevel)
+SYSCALL(setPriority)
+SYSCALL(schedulerLock)
+SYSCALL(schedulerUnlock)

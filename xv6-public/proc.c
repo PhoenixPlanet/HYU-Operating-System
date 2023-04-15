@@ -65,6 +65,76 @@ myproc(void) {
   return p;
 }
 
+
+//------------------implemented by me(Yu, Taehwan) for assignment -------------------
+
+int global_tick = 0;
+
+int
+getLevel() {
+  int level;
+  struct proc* p = myproc();
+
+  acquire(&ptable.lock);
+  level = p->mlfq_info.level;
+  release(&ptable.lock);
+
+  return level;
+}
+
+void
+setPriority(int pid, int priority) {
+  struct proc* p = myproc();
+
+  if (priority < 0 || priority > 3) {
+    panic("invalid priority");
+  }
+
+  acquire(&ptable.lock);
+
+  if (pid == p->pid) {
+    p->mlfq_info.priority.pvalue = priority;
+  } else {
+    //TODO: 실행중인 프로세스가 아니라면 큐 내 위치 재조정 필요 (locked process인 경우도 생각)
+    relocate_by_priority(&_mlfq, pid, priority);
+  }
+
+  release(&ptable.lock);
+}
+
+void
+schedulerLock(int password) {
+  struct proc* p = myproc();
+
+  if (password != MLFQLOCKPASSWORD) {
+    print_mlfq_err(&_mlfq, p);
+    exit();
+  }
+
+  acquire(&ptable.lock);
+  scheduler_lock(&_mlfq, p);
+  sched();
+  release(&ptable.lock);
+}
+
+void
+schedulerUnlock(int password) {
+  struct proc* p = myproc();
+
+  if (password != MLFQLOCKPASSWORD) {
+    print_mlfq_err(&_mlfq, p);
+    exit();
+  }
+
+  acquire(&ptable.lock);
+  scheduler_unlock(&_mlfq);
+  sched();
+  release(&ptable.lock);
+}
+
+//------------------implemented by me(Yu, Taehwan) for assignment -------------------
+
+
 //PAGEBREAK: 32
 // Look in the process table for an UNUSED proc.
 // If found, change state to EMBRYO and initialize
@@ -149,6 +219,7 @@ userinit(void)
   acquire(&ptable.lock);
 
   p->state = RUNNABLE;
+  insert_queue(&_mlfq, p, L0, TRUE, TRUE);
 
   release(&ptable.lock);
 }
@@ -215,6 +286,7 @@ fork(void)
   acquire(&ptable.lock);
 
   np->state = RUNNABLE;
+  insert_queue(&_mlfq, np, L0, TRUE, TRUE);
 
   release(&ptable.lock);
 
@@ -294,6 +366,11 @@ wait(void)
         p->parent = 0;
         p->name[0] = 0;
         p->killed = 0;
+
+        p->mlfq_info.level = -1;
+        p->mlfq_info.next = NULL;
+        p->mlfq_info.prev = NULL;
+
         p->state = UNUSED;
         release(&ptable.lock);
         return pid;
@@ -332,24 +409,25 @@ scheduler(void)
 
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
-    for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-      if(p->state != RUNNABLE)
-        continue;
 
-      // Switch to chosen process.  It is the process's job
-      // to release ptable.lock and then reacquire it
-      // before jumping back to us.
-      c->proc = p;
-      switchuvm(p);
-      p->state = RUNNING;
+    p = mlfq_select_target(&_mlfq);
 
-      swtch(&(c->scheduler), p->context);
-      switchkvm();
+    // Switch to chosen process.  It is the process's job
+    // to release ptable.lock and then reacquire it
+    // before jumping back to us.
+    c->proc = p;
+    switchuvm(p);
+    p->state = RUNNING;
 
-      // Process is done running for now.
-      // It should have changed its p->state before coming back.
-      c->proc = 0;
-    }
+    swtch(&(c->scheduler), p->context);
+    switchkvm();
+
+    // Process is done running for now.
+    // It should have changed its p->state before coming back.
+    c->proc = 0;
+
+    boost_check(&_mlfq);
+
     release(&ptable.lock);
 
   }
@@ -376,6 +454,12 @@ sched(void)
     panic("sched running");
   if(readeflags()&FL_IF)
     panic("sched interruptible");
+
+  if (p->state == RUNNABLE) {
+    back_to_mlfq(&_mlfq, p);
+  }
+  check_lock_state_when_sched(&_mlfq, p);
+
   intena = mycpu()->intena;
   swtch(&p->context, mycpu()->scheduler);
   mycpu()->intena = intena;
@@ -460,8 +544,10 @@ wakeup1(void *chan)
   struct proc *p;
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-    if(p->state == SLEEPING && p->chan == chan)
+    if(p->state == SLEEPING && p->chan == chan) {
       p->state = RUNNABLE;
+      check_wakeup(&_mlfq, p);
+    }
 }
 
 // Wake up all processes sleeping on chan.
@@ -486,8 +572,10 @@ kill(int pid)
     if(p->pid == pid){
       p->killed = 1;
       // Wake process from sleep if necessary.
-      if(p->state == SLEEPING)
+      if(p->state == SLEEPING) {
         p->state = RUNNABLE;
+        check_wakeup(&_mlfq, p);
+      }
       release(&ptable.lock);
       return 0;
     }
