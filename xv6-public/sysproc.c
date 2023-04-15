@@ -12,7 +12,7 @@
 int
 sys_yield(void)
 {
-  yield();
+  yield(TRUE);
   return 0;
 }
 
@@ -51,7 +51,7 @@ sys_schedulerLock(void)
 }
 
 int
-sys_schedulerLock(void)
+sys_schedulerUnlock(void)
 {
   int password;
 
