@@ -21,13 +21,14 @@ extern void trapret(void);
 
 static void wakeup1(void *chan);
 
+// mlfq
 MLFQ _mlfq = {.MAX_TIME_QUANTUM = {MLFQL0TIMEQ, MLFQL1TIMEQ, MLFQL2TIMEQ}};
 
 void
 pinit(void)
 {
   initlock(&ptable.lock, "ptable");
-  init_mlfq(&_mlfq, ptable.proc);
+  init_mlfq(&_mlfq, ptable.proc); // init mlfq right after ptable init
 }
 
 // Must be called with interrupts disabled
@@ -72,8 +73,7 @@ myproc(void) {
 
 //------------------implemented by me(Yu, Taehwan) for assignment -------------------
 
-int global_tick = 0;
-
+// Just return the level value of process
 int
 getLevel() {
   int level;
@@ -91,15 +91,16 @@ setPriority(int pid, int priority) {
   struct proc* p = myproc();
 
   if (priority < 0 || priority > 3) {
-    panic("invalid priority");
+    cprintf("invalid priority: %d\n", priority);
+    return;
   }
 
   acquire(&ptable.lock);
 
-  if (pid == p->pid) {
+  if (pid == p->pid) { // if the process is running, just set priority value
     p->mlfq_info.priority.pvalue = priority;
   } else {
-    //TODO: 실행중인 프로세스가 아니라면 큐 내 위치 재조정 필요 (locked process인 경우도 생각)
+    // 실행중인 프로세스가 아니라면 큐 내 위치 재조정 필요 (locked process인 경우도 생각)
     relocate_by_priority(&_mlfq, pid, priority);
   }
 
@@ -108,15 +109,20 @@ setPriority(int pid, int priority) {
 
 void
 schedulerLock(int password) {
+  int flag;
   struct proc* p = myproc();
 
-  if (password != MLFQLOCKPASSWORD) {
+  if (password != MLFQLOCKPASSWORD) { // check password
     print_mlfq_err(&_mlfq, p);
     exit();
   }
 
   acquire(&ptable.lock);
-  scheduler_lock(&_mlfq, p);
+  flag = scheduler_lock(&_mlfq, p);
+  if (flag == -1) {
+    release(&ptable.lock);
+    exit(); // if fail, exit
+  }
   p->state = RUNNABLE;
   sched();
   release(&ptable.lock);
@@ -124,15 +130,20 @@ schedulerLock(int password) {
 
 void
 schedulerUnlock(int password) {
+  int flag;
   struct proc* p = myproc();
 
-  if (password != MLFQLOCKPASSWORD) {
+  if (password != MLFQLOCKPASSWORD) { // check password
     cprintf("pid: %d, time quantum: %d, level: %d\n", p->pid, _mlfq.global_tick, p->mlfq_info.level);
-    exit();
+    exit(); 
   }
 
   acquire(&ptable.lock);
-  scheduler_unlock(&_mlfq);
+  flag = scheduler_unlock(&_mlfq);
+  if (flag == -1) {
+    release(&ptable.lock);
+    exit(); // if fail, exit
+  }
   p->state = RUNNABLE;
   sched();
   release(&ptable.lock);
@@ -225,7 +236,7 @@ userinit(void)
   acquire(&ptable.lock);
 
   p->state = RUNNABLE;
-  insert_queue(&_mlfq, p, L0, TRUE, TRUE);
+  insert_queue(&_mlfq, p, L0, TRUE, TRUE); // insert process in to L0 queue after process created
   //cprintf("userinit %d\n", (&_mlfq));
 
   release(&ptable.lock);
@@ -293,7 +304,7 @@ fork(void)
   acquire(&ptable.lock);
 
   np->state = RUNNABLE;
-  insert_queue(&_mlfq, np, L0, TRUE, TRUE);
+  insert_queue(&_mlfq, np, L0, TRUE, TRUE); // insert process in to L0 queue after process created
 
   release(&ptable.lock);
 
@@ -374,6 +385,7 @@ wait(void)
         p->name[0] = 0;
         p->killed = 0;
 
+        // set mlfq info values to default
         p->mlfq_info.level = -1;
         p->mlfq_info.next = NULL_;
         p->mlfq_info.prev = NULL_;
@@ -417,10 +429,10 @@ scheduler(void)
     // Loop over process table looking for process to run.
     acquire(&ptable.lock);
 
-    p = mlfq_select_target(&_mlfq);
+    p = mlfq_select_target(&_mlfq); // select next process from mlfq
 
-    if (p != NULL_) {
-      //cprintf("pid: %d, priority: %d\n", p->pid, p->mlfq_info.priority.pvalue);
+    if (p != NULL_) { // p might be null, so check if p is null or not
+      // cprintf("pid: %d, priority: %d\n", p->pid, p->mlfq_info.priority.pvalue);
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
@@ -441,8 +453,9 @@ scheduler(void)
     //       cprintf("%d\n", p->pid);
     //   }
     // }
-
-    boost_check(&_mlfq);
+    
+    // sched will be called for every tick by trap so this will be called by every tick as well
+    boost_check(&_mlfq); 
 
     release(&ptable.lock);
 
@@ -472,9 +485,10 @@ sched(void)
     panic("sched interruptible");
 
   if (p->state == RUNNABLE) {
+    // put the process back into mlfq
     back_to_mlfq(&_mlfq, p);
   }
-  check_lock_state_when_sched(&_mlfq, p);
+  check_lock_state_when_sched(&_mlfq, p); // unlock if process is sleeping or dead
 
   intena = mycpu()->intena;
   swtch(&p->context, mycpu()->scheduler);
@@ -488,7 +502,7 @@ yield(int fromuser)
   acquire(&ptable.lock);  //DOC: yieldlock
   myproc()->state = RUNNABLE;
   if (fromuser) {
-    if (_mlfq.state == LOCKED) {
+    if (_mlfq.state == LOCKED) { // unlock scheduler if the process called yield by system call
       scheduler_unlock(&_mlfq);
     }
   }
@@ -567,7 +581,7 @@ wakeup1(void *chan)
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     if(p->state == SLEEPING && p->chan == chan) {
       p->state = RUNNABLE;
-      check_wakeup(&_mlfq, p);
+      check_wakeup(&_mlfq, p); // put the process back to mlfq
     }
 }
 
@@ -595,7 +609,7 @@ kill(int pid)
       // Wake process from sleep if necessary.
       if(p->state == SLEEPING) {
         p->state = RUNNABLE;
-        check_wakeup(&_mlfq, p);
+        check_wakeup(&_mlfq, p); // put the process back to mlfq
       }
       release(&ptable.lock);
       return 0;

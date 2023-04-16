@@ -9,6 +9,9 @@
 #include "proc_mlfq.h"
 #include "spinlock.h"
 
+// print information of process
+// pid, used time quantum and level
+// if the process called SchedulerLock, time quantum value might not be proper
 void
 print_mlfq_err(MLFQ* mlfq, struct proc* p) {
   cprintf(
@@ -19,6 +22,9 @@ print_mlfq_err(MLFQ* mlfq, struct proc* p) {
   );
 }
 
+// print information of process
+// pid, time quantum left, and level
+// just print the raw value of proc struct
 void
 print_p_info(struct proc* p) {
   cprintf(
@@ -30,6 +36,8 @@ print_p_info(struct proc* p) {
   );
 }
 
+// initialize mlfq
+// must be called right after the ptable initialized
 void
 init_mlfq(MLFQ* mlfq, struct proc* ptable_procs) {
   int i;
@@ -52,6 +60,7 @@ init_mlfq(MLFQ* mlfq, struct proc* ptable_procs) {
   }
 }
 
+// check if the lhs value is bigger or not (or same)
 // return 0  : same priority value
 // return 1  : lhs has smaller priority value
 // return -1 : rhs has smaller priority value
@@ -69,15 +78,15 @@ compare_pvalue(int lhs, int rhs) {
 // for L2 queue
 // Needs to implement Priority scheduling.
 // First compare priority value in proc.
-// Small priority value has higher priority.
-// If both have same priority, then compare enter_id.
+// Small priority value means higher priority.
+// If both have same priority, then compare enter_id for FCFS
 //
 // return 0  : same priority
 // return 1  : lhs has higher priority
 // return -1 : rhs has higher priority
 int
 compare_priority(struct proc* lhs, struct proc* rhs) {
-  int compare = compare_pvalue(
+  int compare = compare_pvalue( // compare priority value first
     lhs->mlfq_info.priority.pvalue, 
     rhs->mlfq_info.priority.pvalue
   );
@@ -87,7 +96,7 @@ compare_priority(struct proc* lhs, struct proc* rhs) {
   } else if (compare < 0) {
     return -1;
   } else {
-    compare = compare_pvalue(
+    compare = compare_pvalue( // then compare the enter id
       lhs->mlfq_info.priority.enter_id, 
       rhs->mlfq_info.priority.enter_id
     );
@@ -102,6 +111,8 @@ compare_priority(struct proc* lhs, struct proc* rhs) {
   }
 }
 
+// Put the process into the linked list.
+// Use this function when the linked list is empty.
 void
 push_first_elem(QList* queue, struct proc* p) {
   queue->head = p;
@@ -113,6 +124,8 @@ push_first_elem(QList* queue, struct proc* p) {
   return;
 }
 
+// Put the process into the linked list.
+// The process will be the new head of the linked list.
 void
 push_head(QList* queue, struct proc* p) {
   struct proc* temp;
@@ -132,6 +145,8 @@ push_head(QList* queue, struct proc* p) {
   p->mlfq_info.prev = NULL_;
 }
 
+// Put the process into the linked list.
+// The process will be the new tail of the linked list.
 void push_tail(QList* queue, struct proc* p) {
   struct proc* temp;
 
@@ -150,6 +165,9 @@ void push_tail(QList* queue, struct proc* p) {
   p->mlfq_info.next = NULL_;
 }
 
+// Put the process into the linked list.
+// The process will be located by priority.
+// The head of linked list should has the highest priority (the smallest value).
 void
 push_by_priority(QList* queue, struct proc* p) {
   int found = FALSE;
@@ -189,6 +207,7 @@ push_by_priority(QList* queue, struct proc* p) {
   }
 }
 
+// take the process out from the tail of the linked list
 struct proc*
 pop_tail(QList* queue) {
   struct proc** tail_ptr = &(queue->tail);
@@ -207,8 +226,10 @@ pop_tail(QList* queue) {
   return tail_proc;
 }
 
-// insert process in queue.
-// initialize tick 
+// Insert process in queue.
+// Initialize mlfq values if needed.
+// This fucntion can be used when the state of process has changed
+// or move the process from a queue to the other one.
 void 
 insert_queue(MLFQ* mlfq, struct proc* p, int level, int set_priority, int set_timequantum) {
   // common setting for all queues
@@ -230,6 +251,9 @@ insert_queue(MLFQ* mlfq, struct proc* p, int level, int set_priority, int set_ti
   }
 }
 
+// This function can be used when the process is needed to be taken out from
+// the queue no matter if the process is at the tail or not
+//
 // mlfq: target mlfq pointer
 // p: target process
 // keep_level: true(!= 0) or false(0). keep level value when true. if not, set it -1
@@ -261,9 +285,8 @@ delete_from_queue(MLFQ* mlfq, struct proc* p, int keep_level) {
   p->mlfq_info.next = NULL_;
 }
 
-// return the level of queue which can be scheduled next.
-// check from L0 first, and L1, L2 sequentially.
-// panic when there's no queue can be scheduled.
+// Return the level of queue which can be scheduled next.
+// Check from L0 first, and L1, L2 sequentially.
 int
 get_able_queue(MLFQ* mlfq) {
   int i;
@@ -278,6 +301,9 @@ get_able_queue(MLFQ* mlfq) {
   return -1;
 }
 
+// Selct the process that can be scheduled for next tick from the mlfq.
+// Get the process from the tail of the able queue.
+// If SchedulerLock has called, then just return the process that called SchedulerLock
 struct proc*
 mlfq_select_target(MLFQ* mlfq) {
   int target_level;
@@ -300,14 +326,20 @@ mlfq_select_target(MLFQ* mlfq) {
 
   if (target_proc->state != RUNNABLE) {
     print_mlfq_err(mlfq, target_proc);
-    cprintf("Schedule target proc state was: %d", (int)target_proc->state);
+    cprintf("Schedule target proc state was: %d\n", (int)target_proc->state);
     panic("Schedule target process was not runnable");
   }
 
   return target_proc;
 }
 
-// if 
+// After the RUNNING process yield it's turn after using 1 tick 
+// or calling yield system call, put the process back to mlfq.
+// Process used a tick (even if the process called yield system call itself, 
+// it can be considered as using a full tick), so decrease tick_left.
+// 
+// Check the state of mlfq and if UNLOCK_REQURE, 
+// then put the process to the very front of L0 queue (tail of L0 queue)
 void
 back_to_mlfq(MLFQ* mlfq, struct proc* p) {
   if (mlfq->state == LOCKED) {
@@ -358,10 +390,14 @@ back_to_mlfq(MLFQ* mlfq, struct proc* p) {
   }
 
   print_mlfq_err(mlfq, p);
-  cprintf("state: %d", p->pid, p->state);
+  cprintf("state: %d\n", p->pid, p->state);
   panic("Process is not RUNNABLE");
 }
 
+// If the priority value of the process has changed,
+// then the process should be relocated if it's in L2 queue
+//
+// If the process is RUNNING or not in L2 queue then just set the priority
 void
 relocate_by_priority(MLFQ* mlfq, int pid, int priority) {
   struct proc* iter_ptr;
@@ -375,27 +411,35 @@ relocate_by_priority(MLFQ* mlfq, int pid, int priority) {
   }
 
   if (target_proc == NULL_) {
-    cprintf("pid: %d", pid);
-    panic("couldn't find the pid");
+    cprintf("couldn't find the pid: %d\n", pid);
+    return;
   }
 
   if (target_proc->state != RUNNABLE && target_proc->state != SLEEPING) {
-    if (target_proc->state == RUNNING){
+    if (target_proc->state == RUNNING){ // process can be running by other cpu
       target_proc->mlfq_info.priority.pvalue = priority;
       return;
     }
     print_p_info(target_proc);
-    panic("target proc not RUNNABLE or SLEEPING so couldn't relocate");
+    cprintf("target proc not RUNNABLE or SLEEPING or RUNNING so couldn't set priority\n");
+    return;
   }
 
+  // set priority
   target_proc->mlfq_info.priority.pvalue = priority;
 
+  // if the process in L2 queue then first take out the process from queue and put back
   if (target_proc->mlfq_info.level == L2 && target_proc->state == RUNNABLE) {
     delete_from_queue(mlfq, target_proc, TRUE);
     push_by_priority(&(mlfq->sched_queue[L2]), target_proc);
   } 
 }
 
+// This function will be called for every 100 ticks by boost_check function
+//
+// Put every process into L0 queue
+// and if mlfq state is LOCKED then first put the locked process 
+// to the very front of L0 queue (tail of L0 queue)
 void
 prirority_boost(MLFQ* mlfq) {
   struct proc* target_proc;
@@ -404,6 +448,7 @@ prirority_boost(MLFQ* mlfq) {
   QList* L1Q_ptr = &(mlfq->sched_queue[L1]);
   QList* L2Q_ptr = &(mlfq->sched_queue[L2]);
 
+  // Unlock the scheduler and put the locked process in to L0 queue
   if (mlfq->state == LOCKED) {
     mlfq->state = IDLE;
     //cprintf("boost unlock\n");
@@ -412,20 +457,23 @@ prirority_boost(MLFQ* mlfq) {
     mlfq->locked_proc = NULL_;
 
     target_proc->mlfq_info.level = L0;
+    target_proc->mlfq_info.priority.pvalue = MLFQMAXPRIORIY;
+    target_proc->mlfq_info.tick_left = mlfq->MAX_TIME_QUANTUM[L0];
 
-    push_tail(&(mlfq->sched_queue[L0]), target_proc);
+    push_tail(&(mlfq->sched_queue[L0]), target_proc); // very front of L0 queue
   }
 
-  while (L1Q_ptr->head != NULL_) {
+  while (L1Q_ptr->head != NULL_) { // take all process from L1 queue and put back in to L0 queue 
     target_proc = pop_tail(L1Q_ptr);
     insert_queue(mlfq, target_proc, L0, TRUE, TRUE);
   }
 
-  while (L2Q_ptr->head != NULL_) {
+  while (L2Q_ptr->head != NULL_) { // take all process from L12queue and put back in to L0 queue 
     target_proc = pop_tail(L2Q_ptr);
     insert_queue(mlfq, target_proc, L0, TRUE, TRUE);
   }
 
+  // iter all process in ptable and initialize every RUNNABLE process to make it sure
   for (iter_ptr = mlfq->ptable_ptr; iter_ptr < &((mlfq->ptable_ptr)[NPROC]); iter_ptr++) {
     if (iter_ptr->state == RUNNABLE) {
       iter_ptr->mlfq_info.priority.pvalue = MLFQMAXPRIORIY;
@@ -434,6 +482,9 @@ prirority_boost(MLFQ* mlfq) {
   }
 }
 
+// Increase global tick and check if it overs 100 for every tick
+// Will be called by scheduler
+// If the global tick over 100 ticks, then call priority_boost and set global tick to 0
 void 
 boost_check(MLFQ* mlfq) {
   mlfq->global_tick++;
@@ -445,28 +496,35 @@ boost_check(MLFQ* mlfq) {
 }
 
 //TODO: exit, sleep 할때도 자동 unlock 해줘야함
-void
+// Just change the state of mlfq and set the target process as locked process
+// return -1 when fail
+int
 scheduler_lock(MLFQ* mlfq, struct proc* target_proc) {
   if (mlfq->state == LOCKED) {
     print_mlfq_err(mlfq, target_proc);
-    panic("mlfq is already locked");
+    cprintf("mlfq is already locked\n");
+    return -1;
   }
 
   mlfq->state = LOCKED;
   mlfq->global_tick = 0;
   mlfq->locked_proc = target_proc;
+  return 0;
 }
 
-void
+// Change the state of mlfq, and initialize the locked process 
+// return -1 when fail
+int
 scheduler_unlock(MLFQ* mlfq) {
   struct proc* target_proc;
 
   if (mlfq->state != LOCKED) {
     cprintf("mlfq state: %d\n", mlfq->state);
-    panic("mlfq is not locked");
+    cprintf("mlfq is not locked\n");
+    return -1;
   }
   if (mlfq->locked_proc == NULL_) {
-    panic("no process locked");
+    panic("no process locked"); // if mlfq is locked but there's no locked process, it's a critical problem 
   }
 
   mlfq->state = UNLOCK_REQUIRE;
@@ -474,11 +532,14 @@ scheduler_unlock(MLFQ* mlfq) {
   target_proc = mlfq->locked_proc;
   mlfq->locked_proc = NULL_;
 
-  target_proc->mlfq_info.priority.pvalue = MLFQMAXPRIORIY;
-  target_proc->mlfq_info.tick_left = mlfq->MAX_TIME_QUANTUM[L0];
+  target_proc->mlfq_info.priority.pvalue = MLFQMAXPRIORIY; // priority value as 3
+  target_proc->mlfq_info.tick_left = mlfq->MAX_TIME_QUANTUM[L0]; // max time quantum of L0
   target_proc->mlfq_info.level = L0;
+  return 0;
 }
 
+// This function will be called from sched funtion for every tick
+// If the locked process is sleeping or dead, then unlock the scheduler and change the state of mlfq
 void
 check_lock_state_when_sched(MLFQ* mlfq, struct proc* p) {
   if (mlfq->state == LOCKED) {
@@ -496,6 +557,7 @@ check_lock_state_when_sched(MLFQ* mlfq, struct proc* p) {
   }
 }
 
+// If the process waked up, it should go back to mlfq
 void
 check_wakeup(MLFQ* mlfq, struct proc* p) {
   insert_queue(mlfq, p, p->mlfq_info.level, FALSE, TRUE);
