@@ -19,10 +19,7 @@ sys_yield(void)
 int
 sys_getLevel(void)
 {
-  int level;
-  
-  level = getLevel();
-  return level;
+  return myproc()->mlfq_info.level;
 }
 
 int

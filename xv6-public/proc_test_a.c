@@ -89,12 +89,13 @@ int main(int argc, char *argv[])
   if (pid != parent)
   {
     if (pid == 7) {
-      __asm__("int $129");
+      schedulerLock(2019039843);
     }
     for (i = 0; i < NUM_LOOP; i++)
     {
       int x = getLevel();
-      if (x < 0 || x > 4)
+      //printf(1, "asfd\n");
+      if (x < 0 || x > 2)
       {
         printf(1, "Wrong level: %d\n", x);
         exit();

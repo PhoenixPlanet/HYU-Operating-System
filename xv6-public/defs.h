@@ -151,8 +151,8 @@ void            back_to_mlfq(MLFQ*, struct proc*);
 void            relocate_by_priority(MLFQ*, int, int);
 void            prirority_boost(MLFQ*);
 void            boost_check(MLFQ*);
-void            scheduler_lock(MLFQ*, struct proc*);
-void            scheduler_unlock(MLFQ*);
+int             scheduler_lock(MLFQ*, struct proc*);
+int             scheduler_unlock(MLFQ*);
 void            check_lock_state_when_sched(MLFQ*, struct proc*);
 void            check_wakeup(MLFQ*, struct proc*);
 
