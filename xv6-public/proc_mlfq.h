@@ -11,7 +11,6 @@ typedef struct _QList {
 
 typedef struct _MLFQ {
   const int MAX_TIME_QUANTUM[NMLFQLEVEL];
-  int global_tick;
 
   MLFQState state;                 // if scheduler locked(LOCKED) or not(IDLE)
   struct proc* ptable_ptr;         // implement queue as linked list

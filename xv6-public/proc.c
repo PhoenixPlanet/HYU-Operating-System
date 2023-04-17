@@ -134,7 +134,7 @@ schedulerUnlock(int password) {
   struct proc* p = myproc();
 
   if (password != MLFQLOCKPASSWORD) { // check password
-    cprintf("pid: %d, time quantum: %d, level: %d\n", p->pid, _mlfq.global_tick, p->mlfq_info.level);
+    cprintf("pid: %d, time quantum: %d, level: %d\n", p->pid, ticks, p->mlfq_info.level);
     exit(); 
   }
 
