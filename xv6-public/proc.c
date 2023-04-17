@@ -432,7 +432,7 @@ scheduler(void)
     p = mlfq_select_target(&_mlfq); // select next process from mlfq
 
     if (p != NULL_) { // p might be null, so check if p is null or not
-      // cprintf("pid: %d, priority: %d\n", p->pid, p->mlfq_info.priority.pvalue);
+      // cprintf("pid: %d, priority: %d, level: %d , tick: %d\n", p->pid, p->mlfq_info.priority.pvalue, p->mlfq_info.level, p->mlfq_info.tick_left);
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
@@ -483,7 +483,7 @@ sched(void)
     panic("sched running");
   if(readeflags()&FL_IF)
     panic("sched interruptible");
-
+  
   if (p->state == RUNNABLE) {
     // put the process back into mlfq
     back_to_mlfq(&_mlfq, p);

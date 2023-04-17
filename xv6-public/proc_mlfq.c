@@ -9,6 +9,8 @@
 #include "proc_mlfq.h"
 #include "spinlock.h"
 
+extern int boost_flag;
+
 // print information of process
 // pid, used time quantum and level
 // if the process called SchedulerLock, time quantum value might not be proper
@@ -329,7 +331,7 @@ mlfq_select_target(MLFQ* mlfq) {
     cprintf("Schedule target proc state was: %d\n", (int)target_proc->state);
     panic("Schedule target process was not runnable");
   }
-
+  
   return target_proc;
 }
 
@@ -342,6 +344,7 @@ mlfq_select_target(MLFQ* mlfq) {
 // then put the process to the very front of L0 queue (tail of L0 queue)
 void
 back_to_mlfq(MLFQ* mlfq, struct proc* p) {
+  //cprintf("back to mlfq\n");
   if (mlfq->state == LOCKED) {
     return;
   }
@@ -447,7 +450,7 @@ prirority_boost(MLFQ* mlfq) {
 
   QList* L1Q_ptr = &(mlfq->sched_queue[L1]);
   QList* L2Q_ptr = &(mlfq->sched_queue[L2]);
-
+  
   // Unlock the scheduler and put the locked process in to L0 queue
   if (mlfq->state == LOCKED) {
     mlfq->state = IDLE;
@@ -473,9 +476,10 @@ prirority_boost(MLFQ* mlfq) {
     insert_queue(mlfq, target_proc, L0, TRUE, TRUE);
   }
 
-  // iter all process in ptable and initialize every RUNNABLE process to make it sure
+  // iter all process in ptable and initialize every process to make it sure
   for (iter_ptr = mlfq->ptable_ptr; iter_ptr < &((mlfq->ptable_ptr)[NPROC]); iter_ptr++) {
-    if (iter_ptr->state == RUNNABLE) {
+    if (iter_ptr->state == RUNNABLE || iter_ptr->state == RUNNING || iter_ptr->state == SLEEPING) {
+      iter_ptr->mlfq_info.level = L0;
       iter_ptr->mlfq_info.priority.pvalue = MLFQMAXPRIORIY;
       iter_ptr->mlfq_info.tick_left = mlfq->MAX_TIME_QUANTUM[L0];
     }
@@ -487,10 +491,17 @@ prirority_boost(MLFQ* mlfq) {
 // If the global tick over 100 ticks, then call priority_boost and set global tick to 0
 void 
 boost_check(MLFQ* mlfq) {
-  mlfq->global_tick++;
+  // mlfq->global_tick++;
+  
+  // if (mlfq->global_tick >= 100) {
+  //   cprintf("boost\n");
+  //   mlfq->global_tick = 0;
+  //   prirority_boost(mlfq);
+  // }
 
-  if (mlfq->global_tick >= 100) {
-    mlfq->global_tick = 0;
+  if (boost_flag == TRUE) {
+    // cprintf("boost\n");
+    boost_flag = FALSE;
     prirority_boost(mlfq);
   }
 }
@@ -507,7 +518,7 @@ scheduler_lock(MLFQ* mlfq, struct proc* target_proc) {
   }
 
   mlfq->state = LOCKED;
-  mlfq->global_tick = 0;
+  ticks = 0;
   mlfq->locked_proc = target_proc;
   return 0;
 }

@@ -88,9 +88,9 @@ int main(int argc, char *argv[])
 
   if (pid != parent)
   {
-    if (pid == 7) {
-      schedulerLock(2019039843);
-    }
+    // if (pid == 7) {
+    //   schedulerLock(2019039843);
+    // }
     for (i = 0; i < NUM_LOOP; i++)
     {
       int x = getLevel();
@@ -101,11 +101,11 @@ int main(int argc, char *argv[])
         exit();
       }
       count[x]++;
-      if (i == 30000) {
-        if (pid == 7) {
-          __asm__("int $130");
-        }
-      }
+      // if (i == 30000) {
+      //   if (pid == 7) {
+      //     __asm__("int $130");
+      //   }
+      // }
     }
     printf(1, "Process %d\n", pid);
     for (i = 0; i < MAX_LEVEL; i++)
