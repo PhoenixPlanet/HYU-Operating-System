@@ -129,7 +129,6 @@ void            yield(int);
 
 int             getLevel(void);
 void            setPriority(int, int);
-void            setPriority(int, int);
 void            schedulerLock(int);
 void            schedulerUnlock(int);
 
