@@ -36,14 +36,8 @@ int fork_children2()
     }
     else
     {
-      printf(1, "pid: %d, priority: %d\n", p, i);
-      setPriority(p, i);
-      
-      // if (r < 0)
-      // {
-      //   printf(1, "setpriority returned %d\n", r);
-      //   exit();
-      // }
+      printf(1, "pid: %d, priority: %d\n", p, 3 - i);
+      setPriority(p, 3 - i);
     }
   }
   return parent;
@@ -88,24 +82,18 @@ int main(int argc, char *argv[])
 
   if (pid != parent)
   {
-    // if (pid == 7) {
-    //   schedulerLock(2019039843);
-    // }
+    if (pid == 7) {
+      setPriority(pid, 0);
+    }
     for (i = 0; i < NUM_LOOP; i++)
     {
       int x = getLevel();
-      //printf(1, "asfd\n");
       if (x < 0 || x > 2)
       {
         printf(1, "Wrong level: %d\n", x);
         exit();
       }
       count[x]++;
-      // if (i == 30000) {
-      //   if (pid == 7) {
-      //     __asm__("int $130");
-      //   }
-      // }
     }
     printf(1, "Process %d\n", pid);
     for (i = 0; i < MAX_LEVEL; i++)

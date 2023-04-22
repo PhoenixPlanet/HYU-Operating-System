@@ -82,13 +82,16 @@ int main(int argc, char *argv[])
   printf(1, "[Test 1] finished\n");
 
   printf(1, "[Test 2] setPriority\n");
-  pid = fork_children2();
+  pid = fork_children();
   count[0] = 0;
   count[1] = 0;
   count[2] = 0;
 
   if (pid != parent)
   {
+    if (pid == 11) {
+      setPriority(pid, 0);
+    }
     for (i = 0; i < NUM_LOOP; i++)
     {
       int x = getLevel();
@@ -100,8 +103,6 @@ int main(int argc, char *argv[])
       count[x]++;
     }
     printf(1, "Process %d\n", pid);
-    for (i = 0; i < MAX_LEVEL; i++)
-      printf(1, "L%d: %d\n", i, count[i]);
   }
   exit_children();
   printf(1, "[Test 2] finished\n");
@@ -256,7 +257,7 @@ int main(int argc, char *argv[])
   exit_children();
   printf(1, "[Test 7] finished\n");
 
-  printf(1, "[Test 8] scheduler unlock by priority boost\n");
+  printf(1, "[Test 8] scheduler lock with wrong id\n");
   pid = fork_children();
   count[0] = 0;
   count[1] = 0;
@@ -264,6 +265,9 @@ int main(int argc, char *argv[])
 
   if (pid != parent)
   {
+    if (pid == 35) {
+      schedulerLock(10);
+    }
     for (i = 0; i < NUM_LOOP; i++)
     {
       int x = getLevel();
@@ -306,6 +310,40 @@ int main(int argc, char *argv[])
   }
   exit_children();
   printf(1, "[Test 9] finished\n");
+
+  printf(1, "[Test 10] scheduler unlock by yield\n");
+  pid = fork_children();
+  count[0] = 0;
+  count[1] = 0;
+  count[2] = 0;
+
+  if (pid != parent)
+  {
+    if (pid == 43) {
+      schedulerLock(2019039843);
+    }
+    for (i = 0; i < NUM_LOOP; i++)
+    {
+      int x = getLevel();
+      if (x < 0 || x > 4)
+      {
+        printf(1, "Wrong level: %d\n", x);
+        exit();
+      }
+      count[x]++;
+
+      if (i == 30000) {
+        if (pid == 43) {
+          yield();
+        }
+      }
+    }
+    printf(1, "Process %d\n", pid);
+    for (i = 0; i < MAX_LEVEL; i++)
+      printf(1, "L%d: %d\n", i, count[i]);
+  }
+  exit_children();
+  printf(1, "[Test 10] finished\n");
 
   printf(1, "done\n");
   exit();
