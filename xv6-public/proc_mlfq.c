@@ -17,7 +17,7 @@ extern int boost_flag;
 void
 print_mlfq_err(MLFQ* mlfq, struct proc* p) {
   cprintf(
-    "pid: %d, used time quantum: %d, level: %d\n", 
+    "pid: %d, time quantum: %d, level: %d\n", 
     p->pid, 
     p->mlfq_info.level >= 0 && p->mlfq_info.level < 3 ? mlfq->MAX_TIME_QUANTUM[p->mlfq_info.level] - p->mlfq_info.tick_left : -1, 
     p->mlfq_info.level
@@ -346,6 +346,7 @@ void
 back_to_mlfq(MLFQ* mlfq, struct proc* p) {
   //cprintf("back to mlfq\n");
   if (mlfq->state == LOCKED) {
+    (p->mlfq_info.tick_left)--;
     return;
   }
   
@@ -520,6 +521,7 @@ scheduler_lock(MLFQ* mlfq, struct proc* target_proc) {
   mlfq->state = LOCKED;
   ticks = 0;
   mlfq->locked_proc = target_proc;
+  target_proc->mlfq_info.tick_left = 100;
   return 0;
 }
 
@@ -560,7 +562,7 @@ check_lock_state_when_sched(MLFQ* mlfq, struct proc* p) {
       return;
     }
 
-    if (p->state == ZOMBIE) {
+    if (p->state == ZOMBIE && p == mlfq->locked_proc) {
       scheduler_unlock(mlfq);
       mlfq->state = IDLE;
       return;
