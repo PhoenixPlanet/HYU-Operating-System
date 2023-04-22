@@ -13,6 +13,7 @@ struct gatedesc idt[256];
 extern uint vectors[];  // in vectors.S: array of 256 entry pointers
 struct spinlock tickslock;
 uint ticks;
+int boost_flag = FALSE;
 
 void
 tvinit(void)
@@ -23,6 +24,8 @@ tvinit(void)
     SETGATE(idt[i], 0, SEG_KCODE<<3, vectors[i], 0);
   SETGATE(idt[T_SYSCALL], 1, SEG_KCODE<<3, vectors[T_SYSCALL], DPL_USER);
   SETGATE(idt[128], 1, SEG_KCODE<<3, vectors[128], 3);
+  SETGATE(idt[T_MLFQLOCK], 1, SEG_KCODE<<3, vectors[T_MLFQLOCK], 3);
+  SETGATE(idt[T_MLFQUNLOCK], 1, SEG_KCODE<<3, vectors[T_MLFQUNLOCK], 3);
 
   initlock(&tickslock, "time");
 }
@@ -53,11 +56,34 @@ trap(struct trapframe *tf)
     return;
   }
 
+  if (tf->trapno == T_MLFQLOCK) {
+    if(myproc()->killed)
+      exit();
+    myproc()->tf = tf;
+    schedulerLock(2019039843);
+    if(myproc()->killed)
+      exit();
+    return;
+  }
+
+  if (tf->trapno == T_MLFQUNLOCK) {
+    if(myproc()->killed)
+      exit();
+    myproc()->tf = tf;
+    schedulerUnlock(2019039843);
+    if(myproc()->killed)
+      exit();
+    return;
+  }
+
   switch(tf->trapno){
   case T_IRQ0 + IRQ_TIMER:
     if(cpuid() == 0){
       acquire(&tickslock);
       ticks++;
+      if (ticks % 100 == 0 && ticks != 0) {
+        boost_flag = TRUE;
+      }
       wakeup(&ticks);
       release(&tickslock);
     }
@@ -111,7 +137,7 @@ trap(struct trapframe *tf)
   // If interrupts were on while locks held, would need to check nlock.
   if(myproc() && myproc()->state == RUNNING &&
      tf->trapno == T_IRQ0+IRQ_TIMER)
-    yield();
+    yield(FALSE);
 
   // Check if the process has been killed since we yielded
   if(myproc() && myproc()->killed && (tf->cs&3) == DPL_USER)

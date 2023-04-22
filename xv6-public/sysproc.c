@@ -7,6 +7,60 @@
 #include "mmu.h"
 #include "proc.h"
 
+//------------------implemented by me(Yu, Taehwan) for assignment -------------------
+
+int
+sys_yield(void)
+{
+  yield(TRUE);
+  return 0;
+}
+
+int
+sys_getLevel(void)
+{
+  return myproc()->mlfq_info.level;
+}
+
+int
+sys_setPriority(void)
+{
+  int pid, priority;
+
+  argint(0, &pid);
+  argint(1, &priority);
+
+  setPriority(pid, priority);
+
+  return 0;
+}
+
+int
+sys_schedulerLock(void)
+{
+  int password;
+
+  argint(0, &password);
+
+  schedulerLock(password);
+
+  return 0;
+}
+
+int
+sys_schedulerUnlock(void)
+{
+  int password;
+
+  argint(0, &password);
+
+  schedulerUnlock(password);
+
+  return 0;
+}
+
+//------------------implemented by me(Yu, Taehwan) for assignment -------------------
+
 int
 sys_fork(void)
 {

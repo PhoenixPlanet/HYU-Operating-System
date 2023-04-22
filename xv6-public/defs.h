@@ -10,6 +10,12 @@ struct sleeplock;
 struct stat;
 struct superblock;
 
+struct _QList;
+struct _MLFQ;
+
+typedef struct _QList QList;
+typedef struct _MLFQ MLFQ;
+
 // bio.c
 void            binit(void);
 struct buf*     bread(uint, uint);
@@ -119,7 +125,35 @@ void            sleep(void*, struct spinlock*);
 void            userinit(void);
 int             wait(void);
 void            wakeup(void*);
-void            yield(void);
+void            yield(int);
+
+int             getLevel(void);
+void            setPriority(int, int);
+void            schedulerLock(int);
+void            schedulerUnlock(int);
+
+// proc_mlfq.c
+void            print_mlfq_err(MLFQ*, struct proc*);
+void            print_p_info(struct proc*);
+void            init_mlfq(MLFQ*, struct proc*);
+int             compare_pvalue(int, int);
+int             compare_priority(struct proc*, struct proc*);
+void            push_first_elem(QList*, struct proc*);
+void            push_head(QList*, struct proc*);
+void            push_by_priority(QList*, struct proc*);
+struct proc*    pop_tail(QList*);
+void            insert_queue(MLFQ*, struct proc*, int, int, int);
+void            delete_from_queue(MLFQ*, struct proc*, int);
+int             get_able_queue(MLFQ*);
+struct proc*    mlfq_select_target(MLFQ*);
+void            back_to_mlfq(MLFQ*, struct proc*);
+void            relocate_by_priority(MLFQ*, int, int);
+void            prirority_boost(MLFQ*);
+void            boost_check(MLFQ*);
+int             scheduler_lock(MLFQ*, struct proc*);
+int             scheduler_unlock(MLFQ*);
+void            check_lock_state_when_sched(MLFQ*, struct proc*);
+void            check_wakeup(MLFQ*, struct proc*);
 
 // swtch.S
 void            swtch(struct context**, struct context*);

@@ -29,9 +29,14 @@ OBJS = \
 	vm.o\
 	prac_syscall.o\
 	prac2_mycall.o\
+	proc_mlfq.o\
 
 # Cross-compiling (e.g., on Mac OS X)
 # TOOLPREFIX = i386-jos-elf
+# m1 mac
+ifeq ($(shell uname), Darwin) # it only works when in OSX!
+ TOOLPREFIX = x86_64-elf-
+endif
 
 # Using native tools (e.g., on X86 Linux)
 #TOOLPREFIX = 
@@ -78,7 +83,10 @@ AS = $(TOOLPREFIX)gas
 LD = $(TOOLPREFIX)ld
 OBJCOPY = $(TOOLPREFIX)objcopy
 OBJDUMP = $(TOOLPREFIX)objdump
+# original
 CFLAGS = -fno-pic -static -fno-builtin -fno-strict-aliasing -O2 -Wall -MD -ggdb -m32 -Werror -fno-omit-frame-pointer
+# m1 mac
+#CFLAGS = -fno-pic -static -fno-builtin -fno-strict-aliasing -O2 -Wall -MD -ggdb -m32 -Werror -fno-omit-frame-pointer -Wno-error=stringop-overflow
 CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
 ASFLAGS = -m32 -gdwarf-2 -Wa,-divide
 # FreeBSD ld wants ``elf_i386_fbsd''
@@ -184,6 +192,9 @@ UPROGS=\
 	_zombie\
 	_prac_user_app\
 	_prac2_usercall\
+	_proc_test_a\
+	_usertests\
+	_proc_test_b\
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)
@@ -244,6 +255,17 @@ qemu-nox-gdb: fs.img xv6.img .gdbinit
 	@echo "*** Now run 'gdb'." 1>&2
 	$(QEMU) -nographic $(QEMUOPTS) -S $(QEMUGDB)
 
+launch.json: launch.json.tmpl
+	mkdir -p .vscode
+	if [ -f .gdbinit ]; then rm .gdbinit; fi
+	sed -i "s/^source/# source/" ~/.gdbinit
+	sed "s/localhost:1234/localhost:$(GDBPORT)/" < $^ > .vscode/$@
+
+qemu-vscode: fs.img xv6.img launch.json
+	@echo "*** Now attach to qemu in the debug console ofb vscode." 1>&2
+	@echo "file kernel" > .gdbinit
+	$(QEMU) -serial mon:stdio $(QEMUOPTS) -S $(QEMUGDB)
+
 # CUT HERE
 # prepare dist for students
 # after running make dist, probably want to
@@ -253,7 +275,7 @@ qemu-nox-gdb: fs.img xv6.img .gdbinit
 EXTRA=\
 	mkfs.c ulib.c user.h cat.c echo.c forktest.c grep.c kill.c\
 	ln.c ls.c mkdir.c rm.c stressfs.c wc.c zombie.c\
-	printf.c umalloc.c prac_user_app.c prac2_usercall.c\
+	printf.c umalloc.c prac_user_app.c prac2_usercall.c proc_test_a.c usertests.c proc_test_b.c\
 	README dot-bochsrc *.pl toc.* runoff runoff1 runoff.list\
 	.gdbinit.tmpl gdbutil\
 

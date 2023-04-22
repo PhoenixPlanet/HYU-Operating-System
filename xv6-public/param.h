@@ -12,3 +12,19 @@
 #define NBUF         (MAXOPBLOCKS*3)  // size of disk block cache
 #define FSSIZE       1000  // size of file system in blocks
 
+#define NMLFQLEVEL    3  // number of mlfq level
+#define MLFQL0TIMEQ   4  // mlfq level 0 time quantum
+#define MLFQL1TIMEQ   6  // mlfq level 0 time quantum
+#define MLFQL2TIMEQ   8  // mlfq level 0 time quantum
+#define L0            0  // RR Scheduling
+#define L1            1  // RR Scheduling
+#define L2            2  // Priority Scheduling
+
+#define MLFQMAXPRIORIY 3 // mlfq max priority
+#define MLFQBOOSTTIME 100 // mlfq boost time
+
+#define MLFQLOCKPASSWORD 2019039843 // password for mlfq lock
+
+#define NULL_         0
+#define TRUE          1
+#define FALSE         0

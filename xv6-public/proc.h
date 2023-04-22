@@ -40,7 +40,7 @@ struct proc {
   pde_t* pgdir;                // Page table
   char *kstack;                // Bottom of kernel stack for this process
   enum procstate state;        // Process state
-  int pid;                     // Process ID
+  int pid;                     // Process ID, used for FCFS scheduling
   struct proc *parent;         // Parent process
   struct trapframe *tf;        // Trap frame for current syscall
   struct context *context;     // swtch() here to run process
@@ -49,6 +49,20 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+
+  // mlfq info
+  struct {
+    int level;                   // current mlfq level
+    int tick_left;               // left time quantum
+
+    struct proc* next;
+    struct proc* prev;
+
+    struct {
+      int pvalue;
+      int enter_id;
+    } priority;
+  } mlfq_info;
 };
 
 // Process memory is laid out contiguously, low addresses first:
