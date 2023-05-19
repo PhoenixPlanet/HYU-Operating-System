@@ -33,13 +33,12 @@ struct context {
 };
 
 enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
-enum threadstate { T_UNUSED, T_ALLOCATED, T_USING };
+enum threadstate { T_UNUSED, T_ALLOCATED, T_USING, T_ZOMBIE };
 
 typedef struct _TNode {
   enum threadstate state;
   struct proc* thread;
   uint ustack_bottom;
-  int pagenum
 } TNode;
 
 // Per-process state

@@ -159,6 +159,7 @@ userinit(void)
 int
 growproc(int n)
 {
+  // TODO: CHECK IF THIS IS THREAD SAFE
   uint sz;
   struct proc *curproc = myproc();
   struct proc *main_thread;
@@ -544,4 +545,109 @@ procdump(void)
     }
     cprintf("\n");
   }
+}
+
+// Simillar with allocproc + fork + exec but as a thread not process
+int thread_create(thread_t *thread, void *(*start_routine)(void *), void *arg) {
+  // first do allocproc
+  struct proc* new_thread;
+  char* sp;
+  struct proc* main_thread;
+  struct proc* current_thread = myproc();
+  TNode* target;
+  bool already_allocated;
+  uint sz, sp, ustack[2];
+
+  acquire(&ptable.lock);
+
+  // get main thread to get shared data
+  if (current_thread->thread_info.is_main) {
+    main_thread = current_thread;
+  } else {
+    main_thread = current_thread->thread_info.main_ptr;
+  }
+
+  // check memory limit first
+  sz = main_thread->sz;
+  sz = PGROUNDUP(sz);
+  if (main_thread->memory_limit < sz + (2 * PGSIZE)) {
+    return -1;
+  }
+
+  // search for empty thread node
+  already_allocated = FALSE;
+  for (target = main_thread->thread_table; target < &main_thread->thread_table[NPROC]; target++) {
+    if (target->state == T_UNUSED) {
+      goto found;
+    } else if (target->state == T_ALLOCATED) {
+      already_allocated = TRUE;
+      goto found;
+    }
+  }
+
+  release(&ptable.lock);
+  return -1;
+
+found:
+  target->state = T_ALLOCATED;
+
+  release(&ptable.lock);
+
+  // exactly same as allocproc except increasing pid;
+  if ((new_thread = allocproc()) == 0) {
+    target->state = T_UNUSED;
+    return -1;
+  }
+  new_thread->pid = main_thread->pid;
+  nextpid--;
+
+  // fork + exec (most from exec)
+  // alloc memory for thread
+  new_thread->thread_info.thread_id = main_thread->thread_num++;
+
+  acquire(&ptable.lock);
+
+  if (!already_allocated){
+    if ((sz = allocuvm(main_thread->pgdir, sz, sz + (2 * PGSIZE))) == 0) {
+      // failed to alloc uvm
+      target->state = T_UNUSED;
+      goto bad;
+    }
+    clearpteu(main_thread->pgdir, (char*)(sz - (2 * PGSIZE)));
+    main_thread->sz = sz;
+    sp = sz;
+    target->ustack_bottom = sz;
+  } else {
+    sp = target->ustack_bottom;
+  }
+
+  ustack[0] = 0xffffffff;
+  ustack[1] = (uint)arg;
+
+  sp -= 8; // 2 * 4
+  if (copyout(main_thread->pgdir, sp, ustack, 8) < 0) {
+    goto bad;
+  }
+
+  *(new_thread->tf) = *(current_thread->tf);
+  new_thread->tf->eip = (uint)start_routine;
+  new_thread->tf->esp = sp;
+  new_thread->state = RUNNABLE;
+
+  target->state = T_USING;
+  target->thread = new_thread;
+
+  *thread = new_thread->thread_info.thread_id;
+  
+  release(&ptable.lock);
+
+  return 0;
+
+bad:
+  kfree(new_thread->kstack);
+  new_thread->kstack = 0;
+  new_thread->state = UNUSED;
+
+  release(&ptable.lock);
+  return -1;
 }
