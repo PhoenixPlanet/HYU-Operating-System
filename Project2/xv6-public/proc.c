@@ -278,7 +278,7 @@ exit(void)
   // Jump into the scheduler, never to return.
   curproc->state = ZOMBIE;
   sched();
-  panic("zombie exit");
+  panic("zombie process exit");
 }
 
 // Wait for a child process to exit and return its pid.
@@ -547,6 +547,18 @@ procdump(void)
   }
 }
 
+struct proc* get_main_thread(struct proc* p) {
+  struct proc* main_thread;
+  
+  if (p->thread_info.is_main) {
+    main_thread = p;
+  } else {
+    main_thread = p->thread_info.main_ptr;
+  }
+
+  return main_thread;
+}
+
 // Simillar with allocproc + fork + exec but as a thread not process
 int thread_create(thread_t *thread, void *(*start_routine)(void *), void *arg) {
   // first do allocproc
@@ -561,11 +573,7 @@ int thread_create(thread_t *thread, void *(*start_routine)(void *), void *arg) {
   acquire(&ptable.lock);
 
   // get main thread to get shared data
-  if (current_thread->thread_info.is_main) {
-    main_thread = current_thread;
-  } else {
-    main_thread = current_thread->thread_info.main_ptr;
-  }
+  main_thread = get_main_thread(current_thread);
 
   // check memory limit first
   sz = main_thread->sz;
@@ -603,8 +611,6 @@ found:
 
   // fork + exec (most from exec)
   // alloc memory for thread
-  new_thread->thread_info.thread_id = main_thread->thread_num++;
-
   acquire(&ptable.lock);
 
   if (!already_allocated){
@@ -633,11 +639,14 @@ found:
   new_thread->tf->eip = (uint)start_routine;
   new_thread->tf->esp = sp;
   new_thread->state = RUNNABLE;
-
+  
   target->state = T_USING;
   target->thread = new_thread;
 
   *thread = new_thread->thread_info.thread_id;
+  new_thread->thread_info.is_main = FALSE;
+  new_thread->thread_info.main_ptr = main_thread;
+  new_thread->thread_info.thread_id = main_thread->thread_num++;
   
   release(&ptable.lock);
 
@@ -650,4 +659,91 @@ bad:
 
   release(&ptable.lock);
   return -1;
+}
+
+void thread_exit (void *retval) {
+  TNode* target;
+  struct proc* main_thread;
+  struct proc* current_thread = myproc();
+
+  if (current_thread->thread_info.is_main) {
+    // TODO: Can main thread exit?
+    // TODO: Then have to implement change main
+    main_thread = current_thread;
+    return;
+  } else {
+    main_thread = current_thread->thread_info.main_ptr;
+  }
+
+  acquire(&ptable.lock);
+
+  for (target = main_thread->thread_table; target < &main_thread->thread_table[NPROC]; target++) {
+    if (target->thread == current_thread) {
+      goto found;
+    }
+  }
+
+  panic("unknown thread");
+
+found:
+  wakeup1(target);
+
+  target->retval = retval;
+  target->state = T_ZOMBIE;
+  current_thread->state = ZOMBIE;
+  sched();
+  panic("zombie thread exit");
+}
+
+int thread_join(thread_t thread, void** retval) {
+  TNode* target;
+  struct proc* target_thread;
+  struct proc* main_thread;
+  struct proc* current_thread = myproc();
+
+  main_thread = get_main_thread(current_thread);
+
+  acquire(&ptable.lock);
+
+  for (target = main_thread->thread_table; target < &main_thread->thread_table[NPROC]; target++) {
+    target_thread = target->thread;
+    if ((target->state == T_USING || target->state == T_ZOMBIE) && target_thread->thread_info.thread_id == thread) {
+      goto found;
+    }
+  }
+
+  // no target thread found
+  release(&ptable.lock);
+  return -1;
+
+found:
+  if (target->state == T_USING) {
+    sleep(target, &ptable.lock);
+  }
+
+  if (target->state != T_ZOMBIE) {
+    panic("tried to joining not jombie thread");
+  }
+
+  kfree(target_thread->kstack);
+  target_thread->kstack = 0;
+  target_thread->pid = 0;
+  target_thread->parent = 0;
+  target_thread->name[0] = 0;
+  target_thread->killed = 0;
+  target_thread->state = UNUSED;
+  target_thread->pgdir = 0;
+
+  target_thread->thread_info.is_main = FALSE;
+  target_thread->thread_info.main_ptr = 0;
+  target_thread->thread_info.thread_id = 0;
+
+  *retval = target->retval;
+  target->retval = 0;
+  target->state = T_ALLOCATED;
+  target->thread = 0;
+  target->ustack_bottom = 0;
+
+  release(&ptable.lock);
+  return 0;
 }

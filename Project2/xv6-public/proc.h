@@ -39,6 +39,7 @@ typedef struct _TNode {
   enum threadstate state;
   struct proc* thread;
   uint ustack_bottom;
+  void* retval;
 } TNode;
 
 // Per-process state
@@ -65,11 +66,9 @@ struct proc {
   struct context *context;     // swtch() here to run process
   void *chan;                  // If non-zero, sleeping on chan
 
-  struct {
-    int thread_id;             
+  struct {         
     bool is_main;              // TRUE when this is main thread
     struct proc* main_ptr;
-    void* retval;
     thread_t thread_id;
   } thread_info;
 };
