@@ -3,4 +3,6 @@ typedef unsigned short ushort;
 typedef unsigned char  uchar;
 typedef uint pde_t;
 
-typedef int bool;
+typedef char bool;
+
+typedef int thread_t;
