@@ -33,22 +33,46 @@ struct context {
 };
 
 enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
+enum threadstate { T_UNUSED, T_ALLOCATED, T_USING };
+
+typedef struct _TNode {
+  enum threadstate state;
+  struct proc* thread;
+  uint ustack_bottom;
+  int pagenum
+} TNode;
 
 // Per-process state
 struct proc {
+  //-------- Shared data among threads (only main thread has valid value) -----------
   uint sz;                     // Size of process memory (bytes)
   pde_t* pgdir;                // Page table
-  char *kstack;                // Bottom of kernel stack for this process
-  enum procstate state;        // Process state
   int pid;                     // Process ID
   struct proc *parent;         // Parent process
-  struct trapframe *tf;        // Trap frame for current syscall
-  struct context *context;     // swtch() here to run process
-  void *chan;                  // If non-zero, sleeping on chan
   int killed;                  // If non-zero, have been killed
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+  
+  int memory_limit;
+  int thread_num;
+  TNode thread_table[NPROC];
+  //-------- Shared data among threads (only main thread has valid value) -----------
+
+  char *kstack;                // Bottom of kernel stack for this process
+  enum procstate state;        // Process state
+  
+  struct trapframe *tf;        // Trap frame for current syscall
+  struct context *context;     // swtch() here to run process
+  void *chan;                  // If non-zero, sleeping on chan
+
+  struct {
+    int thread_id;             
+    bool is_main;              // TRUE when this is main thread
+    struct proc* main_ptr;
+    void* retval;
+    thread_t thread_id;
+  } thread_info;
 };
 
 // Process memory is laid out contiguously, low addresses first:
