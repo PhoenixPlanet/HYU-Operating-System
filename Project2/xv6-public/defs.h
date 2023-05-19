@@ -120,6 +120,8 @@ void            userinit(void);
 int             wait(void);
 void            wakeup(void*);
 void            yield(void);
+void            init_thread_data(struct proc*);
+struct proc*    get_main_thread(struct proc*);
 int             thread_create(thread_t *, void *(*)(void *), void *);
 void            thread_exit (void *);
 int             thread_join(thread_t, void**)

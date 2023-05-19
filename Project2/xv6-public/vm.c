@@ -158,11 +158,7 @@ switchuvm(struct proc *p)
 {
   struct proc* main_thread;
 
-  if (p->thread_info.is_main) {
-    main_thread = p;
-  } else {
-    main_thread = p->thread_info.main_ptr;
-  }
+  main_thread = get_main_thread(p);
 
   if(p == 0)
     panic("switchuvm: no process");
