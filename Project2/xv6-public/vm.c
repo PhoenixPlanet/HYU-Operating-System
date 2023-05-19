@@ -156,11 +156,19 @@ switchkvm(void)
 void
 switchuvm(struct proc *p)
 {
+  struct proc* main_thread;
+
+  if (p->thread_info.is_main) {
+    main_thread = p;
+  } else {
+    main_thread = p->thread_info.main_ptr;
+  }
+
   if(p == 0)
     panic("switchuvm: no process");
   if(p->kstack == 0)
     panic("switchuvm: no kstack");
-  if(p->pgdir == 0)
+  if(main_thread->pgdir == 0)
     panic("switchuvm: no pgdir");
 
   pushcli();
@@ -173,7 +181,7 @@ switchuvm(struct proc *p)
   // forbids I/O instructions (e.g., inb and outb) from user space
   mycpu()->ts.iomb = (ushort) 0xFFFF;
   ltr(SEG_TSS << 3);
-  lcr3(V2P(p->pgdir));  // switch to process's address space
+  lcr3(V2P(main_thread->pgdir));  // switch to process's address space
   popcli();
 }
 

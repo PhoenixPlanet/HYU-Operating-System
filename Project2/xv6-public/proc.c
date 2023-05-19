@@ -148,6 +148,7 @@ userinit(void)
   // because the assignment might not be atomic.
   acquire(&ptable.lock);
 
+  p->memory_limit = 0;
   p->state = RUNNABLE;
 
   release(&ptable.lock);
@@ -160,16 +161,27 @@ growproc(int n)
 {
   uint sz;
   struct proc *curproc = myproc();
+  struct proc *main_thread;
 
-  sz = curproc->sz;
+  if (curproc->thread_info.is_main) {
+    main_thread = curproc;
+  } else {
+    main_thread = curproc->thread_info.main_ptr;
+  }
+
+  sz = main_thread->sz;
   if(n > 0){
-    if((sz = allocuvm(curproc->pgdir, sz, sz + n)) == 0)
+    // check memory limit
+    if (main_thread->memory_limit != 0 && sz + n > main_thread->memory_limit) {
+      return -1;
+    }
+    if((sz = allocuvm(main_thread->pgdir, sz, sz + n)) == 0)
       return -1;
   } else if(n < 0){
-    if((sz = deallocuvm(curproc->pgdir, sz, sz + n)) == 0)
+    if((sz = deallocuvm(main_thread->pgdir, sz, sz + n)) == 0)
       return -1;
   }
-  curproc->sz = sz;
+  main_thread->sz = sz;
   switchuvm(curproc);
   return 0;
 }
@@ -214,6 +226,7 @@ fork(void)
 
   acquire(&ptable.lock);
 
+  np->memory_limit = 0;
   np->state = RUNNABLE;
 
   release(&ptable.lock);
