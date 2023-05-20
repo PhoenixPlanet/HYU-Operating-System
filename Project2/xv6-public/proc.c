@@ -564,12 +564,24 @@ wakeup(void *chan)
 int
 kill(int pid)
 {
+  TNode* target;
   struct proc *p;
 
   acquire(&ptable.lock);
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-    if(p->pid == pid){
+    if(p->pid == pid && p->thread_info.is_main){
       p->killed = 1;
+
+      for (target = p->thread_table; target < &p->thread_table[NPROC]; target++) {
+        if (target->state == T_USING) {
+          target->thread->killed = 1;
+
+          if (target->thread->state == SLEEPING) {
+            target->thread->state = RUNNABLE;
+          }
+        }
+      }
+
       // Wake process from sleep if necessary.
       if(p->state == SLEEPING)
         p->state = RUNNABLE;

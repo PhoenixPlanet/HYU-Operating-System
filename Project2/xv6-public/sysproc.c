@@ -39,7 +39,7 @@ sys_kill(void)
 int
 sys_getpid(void)
 {
-  return myproc()->pid;
+  return get_main_thread(myproc())->pid;
 }
 
 int
@@ -50,7 +50,7 @@ sys_sbrk(void)
 
   if(argint(0, &n) < 0)
     return -1;
-  addr = myproc()->sz;
+  addr = get_main_thread(myproc())->sz;
   if(growproc(n) < 0)
     return -1;
   return addr;
@@ -67,7 +67,7 @@ sys_sleep(void)
   acquire(&tickslock);
   ticks0 = ticks;
   while(ticks - ticks0 < n){
-    if(myproc()->killed){
+    if(myproc()->killed || get_main_thread(myproc())->killed){
       release(&tickslock);
       return -1;
     }

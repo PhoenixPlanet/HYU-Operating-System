@@ -17,7 +17,7 @@
 int
 fetchint(uint addr, int *ip)
 {
-  struct proc *curproc = myproc();
+  struct proc *curproc = get_main_thread(myproc());
 
   if(addr >= curproc->sz || addr+4 > curproc->sz)
     return -1;
@@ -32,7 +32,7 @@ int
 fetchstr(uint addr, char **pp)
 {
   char *s, *ep;
-  struct proc *curproc = myproc();
+  struct proc *curproc = get_main_thread(myproc());
 
   if(addr >= curproc->sz)
     return -1;
@@ -59,7 +59,7 @@ int
 argptr(int n, char **pp, int size)
 {
   int i;
-  struct proc *curproc = myproc();
+  struct proc *curproc = get_main_thread(myproc());
  
   if(argint(n, &i) < 0)
     return -1;
@@ -133,13 +133,14 @@ syscall(void)
 {
   int num;
   struct proc *curproc = myproc();
+  struct proc *main_thread = get_main_thread(curproc);
 
   num = curproc->tf->eax;
   if(num > 0 && num < NELEM(syscalls) && syscalls[num]) {
     curproc->tf->eax = syscalls[num]();
   } else {
     cprintf("%d %s: unknown sys call %d\n",
-            curproc->pid, curproc->name, num);
+            main_thread->pid, main_thread->name, num);
     curproc->tf->eax = -1;
   }
 }
