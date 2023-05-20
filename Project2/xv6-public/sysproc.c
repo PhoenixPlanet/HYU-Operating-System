@@ -64,10 +64,11 @@ sys_sleep(void)
 
   if(argint(0, &n) < 0)
     return -1;
+  //cprintf("sleep tid: %d sec: %d\n", myproc()->thread_info.thread_id, n);
   acquire(&tickslock);
   ticks0 = ticks;
   while(ticks - ticks0 < n){
-    if(myproc()->killed || get_main_thread(myproc())->killed){
+    if(myproc()->killed){
       release(&tickslock);
       return -1;
     }
@@ -93,17 +94,17 @@ sys_uptime(void)
 
 int 
 sys_thread_create(void) {
-  thread_t thread;
+  thread_t* thread;
   void *(*start_routine)(void *);
   void *arg;
 
-  if(argint(0, &thread) < 0)
+  if(argptr(0, (void*)&thread, sizeof(*thread_create)) < 0)
     return -1;
 
-  if(argptr(0, (void*)&start_routine, sizeof(*start_routine)) < 0)
+  if(argptr(1, (void*)&start_routine, sizeof(*start_routine)) < 0)
     return -1;
   
-  if(argptr(0, (void*)&arg, sizeof(*arg)) < 0)
+  if(argptr(2, (void*)&arg, sizeof(*arg)) < 0)
     return -1;
 
   return thread_create(thread, start_routine, arg);
@@ -129,7 +130,7 @@ sys_thread_join(void) {
   if(argint(0, &thread) < 0)
     return -1;
 
-  if(argptr(0, (void*)&retval, sizeof(*retval)) < 0)
+  if(argptr(1, (void*)&retval, sizeof(*retval)) < 0)
     return -1;
 
   return thread_join(thread, retval);

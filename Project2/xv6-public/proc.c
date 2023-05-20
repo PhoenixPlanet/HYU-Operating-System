@@ -164,6 +164,9 @@ userinit(void)
   p->thread_info.main_ptr = p;
   p->thread_info.thread_id = p->thread_num++;
 
+  p->main_stack_bottom = p->sz;
+  p->main_stack_page_num = 1;
+
   release(&ptable.lock);
 }
 
@@ -205,7 +208,6 @@ growproc(int n)
 int
 fork(void)
 {
-  uint temp_stack_bottom;
   int i, pid;
   struct proc *np;
   struct proc *main_thread;
@@ -250,14 +252,14 @@ fork(void)
     if (main_thread->thread_table[i].state != T_UNUSED) {
       // TODO: main thread 아닌 경우에 스택 페이지 재조정 필요
       if (main_thread->thread_table[i].thread == curproc) {
-        temp_stack_bottom = main_thread->main_stack_bottom;
-        main_thread->main_stack_bottom = main_thread->thread_table[i].ustack_bottom;
-        main_thread->thread_table[i].ustack_bottom = temp_stack_bottom;
+        np->thread_table[i].ustack_bottom = main_thread->main_stack_bottom;
+        np->main_stack_bottom = main_thread->thread_table[i].ustack_bottom;
 
         main_thread->main_stack_page_num = 2;
+      } else {
+        np->thread_table[i].ustack_bottom = main_thread->thread_table[i].ustack_bottom;
       }
       np->thread_table[i].state = T_ALLOCATED;
-      np->thread_table[i].ustack_bottom = main_thread->thread_table[i].ustack_bottom;
     } else {
       np->thread_table[i].state = T_UNUSED;
     }
@@ -303,12 +305,16 @@ exit(void)
     if (main_thread->state == SLEEPING) {
       main_thread->state = RUNNABLE;
     }
-    release(&ptable.lock);
-    thread_exit(0);
+    //release(&ptable.lock);
+    //thread_exit(0);
+    //cprintf("exiting not main - pid: %d, tid: %d\n", main_thread->pid, curproc->thread_info.thread_id);
+    sleep((void*)&curproc->thread_info, &ptable.lock);
   }
 
+  //cprintf("start exiting main\n");
   for (target = main_thread->thread_table; target < &main_thread->thread_table[NPROC]; target++) {
     if ((target->state == T_USING || target->state == T_ZOMBIE)) {
+      //cprintf("init not main - tid: %d\n", target->thread->thread_info.thread_id);
       init_thread_data(target->thread);
     }
   }
@@ -357,6 +363,7 @@ wait(void)
   struct proc *p_main;
   int havekids, pid;
   struct proc *curproc = myproc();
+  struct proc *main_thread = get_main_thread(curproc);
   
   acquire(&ptable.lock);
   for(;;){
@@ -366,7 +373,7 @@ wait(void)
       p_main = get_main_thread(p);
       if (p_main != p)
         continue;
-      if(p_main->parent != curproc)
+      if(p_main->parent != main_thread)
         continue;
       havekids = 1;
       if(p->state == ZOMBIE){
@@ -386,13 +393,13 @@ wait(void)
     }
 
     // No point waiting if we don't have any children.
-    if(!havekids || curproc->killed){
+    if(!havekids || curproc->killed || main_thread->killed){
       release(&ptable.lock);
       return -1;
     }
 
     // Wait for children to exit.  (See wakeup1 call in proc_exit.)
-    sleep(curproc, &ptable.lock);  //DOC: wait-sleep
+    sleep(main_thread, &ptable.lock);  //DOC: wait-sleep
   }
 }
 
@@ -526,6 +533,8 @@ sleep(void *chan, struct spinlock *lk)
 
   sched();
 
+  //cprintf("wake up pid: %d, tid: %d\n", get_main_thread(p)->pid, p->thread_info.thread_id);
+
   // Tidy up.
   p->chan = 0;
 
@@ -545,8 +554,9 @@ wakeup1(void *chan)
   struct proc *p;
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-    if(p->state == SLEEPING && p->chan == chan)
+    if(p->state == SLEEPING && p->chan == chan) {
       p->state = RUNNABLE;
+    }
 }
 
 // Wake up all processes sleeping on chan.
@@ -672,11 +682,12 @@ int thread_create(thread_t *thread, void *(*start_routine)(void *), void *arg) {
 
   // get main thread to get shared data
   main_thread = get_main_thread(current_thread);
-
+  
   // check memory limit first
   sz = main_thread->sz;
   sz = PGROUNDUP(sz);
-  if (main_thread->memory_limit < sz + (2 * PGSIZE)) {
+  if (main_thread->memory_limit != 0 && main_thread->memory_limit < sz + (2 * PGSIZE)) {
+    release(&ptable.lock);
     return -1;
   }
 
@@ -721,8 +732,10 @@ found:
     main_thread->sz = sz;
     sp = sz;
     target->ustack_bottom = sz;
+    //cprintf("target: %p, ustack: %p\n", target, target->ustack_bottom);
   } else {
     sp = target->ustack_bottom;
+    //cprintf("target: %p, ustack: %p\n", target, target->ustack_bottom);
   }
 
   ustack[0] = 0xffffffff;
@@ -730,6 +743,7 @@ found:
 
   sp -= 8; // 2 * 4
   if (copyout(main_thread->pgdir, sp, ustack, 8) < 0) {
+    cprintf("create error\n");
     goto bad;
   }
 
@@ -741,10 +755,10 @@ found:
   target->state = T_USING;
   target->thread = new_thread;
 
+  new_thread->thread_info.thread_id = main_thread->thread_num++;
   *thread = new_thread->thread_info.thread_id;
   new_thread->thread_info.is_main = FALSE;
   new_thread->thread_info.main_ptr = main_thread;
-  new_thread->thread_info.thread_id = main_thread->thread_num++;
   
   release(&ptable.lock);
 
@@ -820,7 +834,7 @@ found:
   }
 
   if (target->state != T_ZOMBIE) {
-    panic("tried to joining not jombie thread");
+    panic("tried to joining not jombie thread state: %d");
   }
 
   init_thread_data(target_thread);
@@ -829,7 +843,6 @@ found:
   target->retval = 0;
   target->state = T_ALLOCATED;
   target->thread = 0;
-  target->ustack_bottom = 0;
 
   release(&ptable.lock);
   return 0;

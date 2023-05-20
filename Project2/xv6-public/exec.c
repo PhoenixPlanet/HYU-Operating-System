@@ -97,6 +97,8 @@ exec(char *path, char **argv)
   oldpgdir = curproc->pgdir;
   curproc->pgdir = pgdir;
   curproc->sz = sz;
+  curproc->main_stack_bottom = sz;
+  curproc->main_stack_page_num = 2;
   curproc->tf->eip = elf.entry;  // main
   curproc->tf->esp = sp;
 
