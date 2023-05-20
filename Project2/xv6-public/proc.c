@@ -205,6 +205,7 @@ growproc(int n)
 int
 fork(void)
 {
+  uint temp_stack_bottom;
   int i, pid;
   struct proc *np;
   struct proc *main_thread;
@@ -247,10 +248,24 @@ fork(void)
 
   for (i = 0; i < NPROC; i++) {
     if (main_thread->thread_table[i].state != T_UNUSED) {
+      // TODO: main thread 아닌 경우에 스택 페이지 재조정 필요
+      if (main_thread->thread_table[i].thread == curproc) {
+        temp_stack_bottom = main_thread->main_stack_bottom;
+        main_thread->main_stack_bottom = main_thread->thread_table[i].ustack_bottom;
+        main_thread->thread_table[i].ustack_bottom = temp_stack_bottom;
+
+        main_thread->main_stack_page_num = 2;
+      }
       np->thread_table[i].state = T_ALLOCATED;
+      np->thread_table[i].ustack_bottom = main_thread->thread_table[i].ustack_bottom;
     } else {
       np->thread_table[i].state = T_UNUSED;
     }
+  }
+
+  if (main_thread == curproc) {
+    np->main_stack_bottom = main_thread->main_stack_bottom;
+    np->main_stack_page_num = main_thread->main_stack_page_num;
   }
 
   np->thread_num = 0;
