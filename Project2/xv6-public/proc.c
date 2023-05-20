@@ -662,7 +662,6 @@ struct proc* get_main_thread(struct proc* p) {
 int thread_create(thread_t *thread, void *(*start_routine)(void *), void *arg) {
   // first do allocproc
   struct proc* new_thread;
-  char* sp;
   struct proc* main_thread;
   struct proc* current_thread = myproc();
   TNode* target;
