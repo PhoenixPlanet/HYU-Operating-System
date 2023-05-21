@@ -24,6 +24,7 @@ void            panic(char*) __attribute__((noreturn));
 
 // exec.c
 int             exec(char*, char**);
+int             exec2(char *, char **, int);
 
 // file.c
 struct file*    filealloc(void);
@@ -120,6 +121,9 @@ void            userinit(void);
 int             wait(void);
 void            wakeup(void*);
 void            yield(void);
+void            setmemorylimit(int, int);
+void            kill_other_threads();
+void            change_main_to_curthread();
 void            init_thread_data(struct proc*);
 struct proc*    get_main_thread(struct proc*);
 int             thread_create(thread_t *, void *(*)(void *), void *);
