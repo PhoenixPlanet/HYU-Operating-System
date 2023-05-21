@@ -24,6 +24,7 @@ void            panic(char*) __attribute__((noreturn));
 
 // exec.c
 int             exec(char*, char**);
+int             exec2(char *, char **, int);
 
 // file.c
 struct file*    filealloc(void);
