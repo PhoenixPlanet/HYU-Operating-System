@@ -33,3 +33,6 @@ SYSCALL(uptime)
 SYSCALL(thread_create)
 SYSCALL(thread_exit)
 SYSCALL(thread_join)
+
+SYSCALL(exec2)
+SYSCALL(setmemorylimit)
