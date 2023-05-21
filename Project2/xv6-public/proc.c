@@ -7,7 +7,7 @@
 #include "proc.h"
 #include "spinlock.h"
 
-struct {
+extern struct _PTABLE {
   struct spinlock lock;
   struct proc proc[NPROC];
 } ptable;
@@ -640,6 +640,61 @@ procdump(void)
   }
 }
 
+void kill_other_threads() {
+  TNode* target;
+  struct proc* current_thread = myproc();
+  struct proc* main_thread = get_main_thread(current_thread);
+
+  acquire(&ptable.lock);
+  //cprintf("start exiting main\n");
+  for (target = main_thread->thread_table; target < &main_thread->thread_table[NPROC]; target++) {
+    if (target->thread != current_thread && (target->state == T_USING || target->state == T_ZOMBIE)) {
+      init_thread_data(target->thread);
+    }
+  }
+  release(&ptable.lock);
+}
+
+void change_main_to_curthread() {
+  struct proc* current_thread = myproc();
+  struct proc* main_thread = get_main_thread(current_thread);
+  int i;
+
+  acquire(&ptable.lock);
+
+  current_thread->sz = main_thread->sz;
+  current_thread->pgdir = main_thread->pgdir;
+  current_thread->pid = main_thread->pid;
+  current_thread->parent = main_thread->parent;
+  current_thread->killed = main_thread->killed;
+  
+  for (i = 0; i < NOFILE; i++) {
+    current_thread->ofile[i] = main_thread->ofile[i];
+    main_thread->ofile[i] = 0;
+  }
+
+  current_thread->cwd = main_thread->cwd;
+  main_thread->cwd = 0;
+  safestrcpy(current_thread->name, main_thread->name, sizeof(main_thread->name));
+  
+  // copy stack info of main thread
+  current_thread->main_stack_bottom = main_thread->main_stack_bottom;
+  current_thread->main_stack_page_num = main_thread->main_stack_page_num;
+  current_thread->memory_limit = 0;
+
+  // initialize thread table
+  current_thread->thread_num = 0;
+  memset(current_thread->thread_table, 0, sizeof (current_thread->thread_table));
+
+  current_thread->thread_info.is_main = TRUE;
+  current_thread->thread_info.main_ptr = current_thread;
+  current_thread->thread_info.thread_id = 0;
+
+  init_thread_data(main_thread);
+
+  release(&ptable.lock);
+}
+
 void init_thread_data(struct proc* target_thread) {
   kfree(target_thread->kstack);
   target_thread->kstack = 0;
@@ -650,6 +705,9 @@ void init_thread_data(struct proc* target_thread) {
   target_thread->killed = 0;
   target_thread->state = UNUSED;
   target_thread->pgdir = 0;
+  
+  target_thread->main_stack_bottom = 0;
+  target_thread->main_stack_page_num = 0;
 
   target_thread->thread_info.is_main = FALSE;
   target_thread->thread_info.main_ptr = 0;

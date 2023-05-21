@@ -19,6 +19,13 @@ exec(char *path, char **argv)
   pde_t *pgdir, *oldpgdir;
   struct proc *curproc = myproc();
 
+  if (curproc->thread_info.is_main) {
+    kill_other_threads();
+  } else {
+    kill_other_threads();
+    change_main_to_curthread();
+  }
+
   begin_op();
 
   if((ip = namei(path)) == 0){
