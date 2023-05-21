@@ -135,3 +135,19 @@ sys_thread_join(void) {
 
   return thread_join(thread, retval);
 }
+
+ int
+ sys_setmemorylimit(void) {
+  int pid;
+  int limit;
+
+  if (argint(0, &pid) < 0) {
+    return -1;
+  }
+
+  if (argint(1, &limit) < 0) {
+    return -1;
+  }
+
+  setmemorylimit(pid, limit);
+ }

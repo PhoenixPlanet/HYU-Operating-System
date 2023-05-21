@@ -120,6 +120,7 @@ void            userinit(void);
 int             wait(void);
 void            wakeup(void*);
 void            yield(void);
+void            setmemorylimit(int, int);
 void            kill_other_threads();
 void            change_main_to_curthread();
 void            init_thread_data(struct proc*);

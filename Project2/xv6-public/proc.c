@@ -640,6 +640,44 @@ procdump(void)
   }
 }
 
+void setmemorylimit(int pid, int limit) {
+  struct proc* p;
+  
+  // might be removed (see below; limit < p->memory_limit)
+  if (limit < 0) {
+    return -1;
+  }
+
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if(p->pid == pid && p->thread_info.is_main){
+      goto found;
+    }
+  }
+
+  // couldn't found pid
+  return -1;
+
+found:
+  if (!(p->state == SLEEPING || p->state == RUNNABLE || p->state == RUNNING)) {
+    return -1;
+  }
+
+  if (p->killed == 1) {
+    return -1;
+  }
+
+  if (limit == 0) {
+    p->memory_limit = 0;
+  } else {
+    if (limit < p->memory_limit) {
+      return -1;
+    }
+
+    p->memory_limit = limit;
+    return 0;
+  }
+}
+
 void kill_other_threads() {
   TNode* target;
   struct proc* current_thread = myproc();
