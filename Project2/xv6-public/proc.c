@@ -7,7 +7,7 @@
 #include "proc.h"
 #include "spinlock.h"
 
-extern struct _PTABLE {
+struct {
   struct spinlock lock;
   struct proc proc[NPROC];
 } ptable;
