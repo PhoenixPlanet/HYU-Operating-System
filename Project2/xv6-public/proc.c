@@ -640,7 +640,7 @@ procdump(void)
   }
 }
 
-void setmemorylimit(int pid, int limit) {
+int setmemorylimit(int pid, int limit) {
   struct proc* p;
   
   // might be removed (see below; limit < p->memory_limit)
@@ -674,8 +674,9 @@ found:
     }
 
     p->memory_limit = limit;
-    return 0;
   }
+
+  return 0;
 }
 
 void kill_other_threads() {
