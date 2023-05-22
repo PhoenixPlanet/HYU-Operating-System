@@ -671,7 +671,7 @@ found:
   if (limit == 0) {
     p->memory_limit = 0;
   } else {
-    if (limit < p->memory_limit) {
+    if (limit < p->memory_limit || limit < p->sz) {
       return -1;
     }
 
