@@ -7,6 +7,8 @@
 #include "mmu.h"
 #include "proc.h"
 
+#include "pstat.h"
+
 int
 sys_fork(void)
 {
@@ -137,7 +139,7 @@ sys_thread_join(void) {
 }
 
  int
- sys_setmemorylimit(void) {
+sys_setmemorylimit(void) {
   int pid;
   int limit;
 
@@ -150,4 +152,20 @@ sys_thread_join(void) {
   }
 
   return setmemorylimit(pid, limit);
- }
+}
+
+int
+sys_proclist(void) {
+  PStat* pstat_list; 
+  int procnum;
+
+  if (argptr(0, (void*)&pstat_list, sizeof(PStat) * NPROC) < 0) {
+    return -1;
+  }
+
+  if (argint(1, &procnum) < 0) {
+    return -1;
+  }
+
+  proclist(pstat_list, (int*)procnum);
+}

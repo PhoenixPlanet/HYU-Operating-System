@@ -27,3 +27,4 @@
 
 #define SYS_exec2 25
 #define SYS_setmemorylimit 26
+#define SYS_proclist 27

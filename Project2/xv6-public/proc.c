@@ -7,6 +7,8 @@
 #include "proc.h"
 #include "spinlock.h"
 
+#include "pstat.h"
+
 struct {
   struct spinlock lock;
   struct proc proc[NPROC];
@@ -943,4 +945,26 @@ found:
 
   release(&ptable.lock);
   return 0;
+}
+
+void proclist(PStat* pstat_list, int* procnum) {
+  struct proc* p;
+  int i = 0;
+
+  acquire(&ptable.lock);
+  
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if((p->state == RUNNABLE || p->state == RUNNING) && p->thread_info.is_main){
+      pstat_list[i].memory_limit = p->memory_limit;
+      safestrcpy(pstat_list[i].name, p->name, sizeof(p->name));
+      pstat_list[i].pid = p->pid;
+      pstat_list[i].stack_page_num = p->main_stack_page_num;
+      pstat_list[i].sz = p->sz;
+      i++;
+    }
+  }
+
+  *procnum = i;
+
+  release(&ptable.lock);
 }

@@ -108,6 +108,7 @@ extern int sys_thread_exit(void);
 extern int sys_thread_join(void);
 extern int sys_exec2(void);
 extern int sys_setmemorylimit(void);
+extern int sys_proclist(void);
 
 static int (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
@@ -135,7 +136,8 @@ static int (*syscalls[])(void) = {
 [SYS_thread_exit]     sys_thread_exit,
 [SYS_thread_join]     sys_thread_join,
 [SYS_exec2]           sys_exec2,
-[SYS_setmemorylimit]  sys_setmemorylimit
+[SYS_setmemorylimit]  sys_setmemorylimit,
+[SYS_proclist]        sys_proclist,
 };
 
 void

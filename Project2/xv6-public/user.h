@@ -1,5 +1,6 @@
 struct stat;
 struct rtcdate;
+struct _PStat;
 
 // system calls
 int fork(void);
@@ -30,6 +31,8 @@ int thread_join(thread_t, void**);
 
 int exec2(char*, char**, int);
 int setmemorylimit(int, int);
+
+int proclist(struct _PStat*, int*);
 
 // ulib.c
 int stat(const char*, struct stat*);

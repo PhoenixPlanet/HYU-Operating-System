@@ -10,6 +10,9 @@
 #define MAX_ARG_HELPER_LEN 35
 #define MAX_HELPER_LEN 50
 
+#define MAX_INT_FIELD_LEN 12
+#define MAX_PROC_NAME_LEN 17
+
 static char* pmanager_cmds[] = {
 [PM_HELP]   "help",
 [PM_LIST]   "list",
@@ -191,6 +194,70 @@ int get_int_arg(char* arg_str, int* arg) {
 
   *arg = arg_val;
   return 0;
+}
+
+int get_intlen(int i) {
+  int len;
+  
+  for (len = 1; i < 10; i /= 10, len++);
+
+  return len;
+}
+
+void print_proc_list_divider(char divider) {
+  int i, j;
+
+  printf(2, "+");
+  for (i = 0; i < MAX_INT_FIELD_LEN; i++) {
+    printf(2, "%c", divider);
+  }
+  printf(2, "+");
+  for (i = 0; i < MAX_PROC_NAME_LEN; i++) {
+    printf(2, "%c", divider);
+  }
+  for (i = 0; i < 3; i++) {
+    printf(2, "+");
+    for (j = 0; j < MAX_INT_FIELD_LEN; j++) {
+      printf(2, "%c", divider);
+    }
+  }
+  printf(2, "+\nr");
+}
+
+void print_proc_list() {
+  int proc_num, i, j, k;
+  int int_fields[3];
+
+  if (proclist(pstat_list, proc_num) < 0) {
+    print_error("getting process list failed");
+  } else {
+    printf(2, "\n");
+    for (i = 0; i < proc_num; i++) {
+      int_fields[0] = pstat_list[i].stack_page_num;
+      int_fields[1] = pstat_list[i].sz;
+      int_fields[2] = pstat_list[i].memory_limit;
+
+      print_proc_list_divider('=');
+      printf(2, "|%d", pstat_list[i].pid);
+      for (j = 0; j < (MAX_INT_FIELD_LEN - get_intlen(pstat_list[i].pid)); j++) {
+        printf(2, " ");
+      }
+      printf(2, "|%s", pstat_list[i].name);
+      for (j = 0; j < (MAX_PROC_NAME_LEN - strlen(pstat_list[i].name)); j++) {
+        printf(2, " ");
+      }
+
+      for (j = 0; j < 3; j++) {
+        printf(2, "|%d", int_fields[j]);
+        for (k = 0; k < (MAX_INT_FIELD_LEN - get_intlen(int_fields[j])); k++) {
+          printf(2, " ");
+        }
+      }
+      printf(2, "|\n");
+    }
+    print_proc_list_divider('=');
+    printf(2, "\n");
+  }
 }
 
 void kill_wrapper(int pid) {

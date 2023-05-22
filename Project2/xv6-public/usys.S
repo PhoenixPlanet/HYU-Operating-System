@@ -36,3 +36,4 @@ SYSCALL(thread_join)
 
 SYSCALL(exec2)
 SYSCALL(setmemorylimit)
+SYSCALL(proclist)

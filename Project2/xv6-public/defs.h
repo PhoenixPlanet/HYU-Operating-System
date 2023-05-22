@@ -9,6 +9,7 @@ struct spinlock;
 struct sleeplock;
 struct stat;
 struct superblock;
+struct _PStat;
 
 // bio.c
 void            binit(void);
@@ -129,6 +130,7 @@ struct proc*    get_main_thread(struct proc*);
 int             thread_create(thread_t *, void *(*)(void *), void *);
 void            thread_exit (void *);
 int             thread_join(thread_t, void**);
+void            proclist(struct _PStat*, int*);
 
 // swtch.S
 void            swtch(struct context**, struct context*);
