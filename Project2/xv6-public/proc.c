@@ -245,7 +245,7 @@ fork(void)
 
   acquire(&ptable.lock);
 
-  np->memory_limit = 0;
+  np->memory_limit = main_thread->memory_limit;
   np->state = RUNNABLE;
 
   for (i = 0; i < NPROC; i++) {
