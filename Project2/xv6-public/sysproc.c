@@ -168,4 +168,6 @@ sys_proclist(void) {
   }
 
   proclist(pstat_list, (int*)procnum);
+
+  return 0;
 }

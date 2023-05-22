@@ -10,8 +10,8 @@
 #define MAX_ARG_HELPER_LEN 35
 #define MAX_HELPER_LEN 50
 
-#define MAX_INT_FIELD_LEN 12
-#define MAX_PROC_NAME_LEN 17
+#define MAX_INT_FIELD_LEN 15
+#define MAX_PROC_NAME_LEN 18
 
 static char* pmanager_cmds[] = {
 [PM_HELP]   "help",
@@ -53,7 +53,7 @@ main(int argc, char *argv[]) {
   int cmd_len;
   int cmd_type;
 
-  printf(2, "\n===== Process Manager =====\n");
+  printf(2, "Process Manager\n");
   print_help_msgs();
 
   while (getline(buf, sizeof(buf)) >= 0) {
@@ -80,7 +80,7 @@ void print_help_msg_divider(char divider) {
   for (i = 0; i < MAX_ARG_HELPER_LEN; i++) {
     printf(2, "%c", divider);
   }
-  printf(2, "+\nr");
+  printf(2, "+\n");
 }
 
 void print_help_msgs() {
@@ -106,8 +106,6 @@ void print_help_msgs() {
     printf(2, "|\n");
     print_help_msg_divider('=');
   }
-
-  printf(2, "\n");
 }
 
 void print_error(char* errstr) {
@@ -116,7 +114,7 @@ void print_error(char* errstr) {
 
 int getline(char *buf, int nbuf)
 {
-  printf(2, ">>> ");
+  printf(2, "\n>>> ");
   memset(buf, 0, nbuf);
   gets(buf, nbuf);
   if(buf[0] == 0) // EOF
@@ -155,16 +153,18 @@ int parse_cmd(char* buf, char* buf_end, char* cmd, char* arg1, char* arg2) {
     for (start = s; s < buf_end && !strchr(whitespace, *s); s++) {
       target_args[i][s - start] = *s;
     }
-    target_args[i][(s - start) + 1] = '\0';
+    target_args[i][s - start] = '\0';
 
     while (s < buf_end && strchr(whitespace, *s)) {
       s++;
     }
 
-    if (s == buf_end || i == 2) {
+    if (s == buf_end) {
       return 0;
     }
   }
+
+  return 0;
 }
 
 int get_cmd_type(char* cmd_str) {
@@ -188,7 +188,7 @@ int get_int_arg(char* arg_str, int* arg) {
 
   arg_val = atoi(arg_str);
 
-  if (arg_val < 0 || arg_val > 1'000'000'000) {
+  if (arg_val < 0 || arg_val > 1000000000) {
     return -1;
   }
 
@@ -199,7 +199,7 @@ int get_int_arg(char* arg_str, int* arg) {
 int get_intlen(int i) {
   int len;
   
-  for (len = 1; i < 10; i /= 10, len++);
+  for (len = 1; i >= 10; i /= 10, len++);
 
   return len;
 }
@@ -221,23 +221,48 @@ void print_proc_list_divider(char divider) {
       printf(2, "%c", divider);
     }
   }
-  printf(2, "+\nr");
+  printf(2, "+\n");
 }
 
 void print_proc_list() {
   int proc_num, i, j, k;
   int int_fields[3];
 
-  if (proclist(pstat_list, proc_num) < 0) {
+  if (proclist(pstat_list, &proc_num) < 0) {
     print_error("getting process list failed");
   } else {
     printf(2, "\n");
+
+    print_proc_list_divider('=');
+    printf(2, "|pid");
+    for (j = 0; j < (MAX_INT_FIELD_LEN - strlen("pid")); j++) {
+      printf(2, " ");
+    }
+    printf(2, "|name");
+    for (j = 0; j < (MAX_PROC_NAME_LEN - strlen("name")); j++) {
+      printf(2, " ");
+    }
+    printf(2, "|stack pages");
+    for (j = 0; j < (MAX_INT_FIELD_LEN - strlen("stack pages")); j++) {
+      printf(2, " ");
+    }
+    printf(2, "|memory size");
+    for (j = 0; j < (MAX_INT_FIELD_LEN - strlen("memory size")); j++) {
+      printf(2, " ");
+    }
+    printf(2, "|memory limit");
+    for (j = 0; j < (MAX_INT_FIELD_LEN - strlen("memory limit")); j++) {
+      printf(2, " ");
+    }
+    printf(2, "|\n");
+
     for (i = 0; i < proc_num; i++) {
       int_fields[0] = pstat_list[i].stack_page_num;
       int_fields[1] = pstat_list[i].sz;
       int_fields[2] = pstat_list[i].memory_limit;
 
-      print_proc_list_divider('=');
+      print_proc_list_divider('-');
+
       printf(2, "|%d", pstat_list[i].pid);
       for (j = 0; j < (MAX_INT_FIELD_LEN - get_intlen(pstat_list[i].pid)); j++) {
         printf(2, " ");
@@ -256,7 +281,6 @@ void print_proc_list() {
       printf(2, "|\n");
     }
     print_proc_list_divider('=');
-    printf(2, "\n");
   }
 }
 
@@ -266,6 +290,8 @@ void kill_wrapper(int pid) {
   } else {
     printf(2, "Successfully killed Process %d\n", pid);
   }
+
+  sleep(10);
 }
 
 void execute_process(char* path, int stacksize) {
@@ -291,7 +317,7 @@ void setmemorylimit_wrapper(int pid, int limit) {
   }
 }
 
-int run_cmd(int cmd_type, char* arg1_str, char* arg2_str) {
+void run_cmd(int cmd_type, char* arg1_str, char* arg2_str) {
   int arg1;
   int arg2;
 
@@ -327,7 +353,7 @@ int run_cmd(int cmd_type, char* arg1_str, char* arg2_str) {
         print_error("execute - wrong format");
         break;
       }
-      printf(2, "Set memory limit of Process %d to %d bytes", arg1, arg2);
+      printf(2, arg2 != 0 ? "Set memory limit of Process %d to %d bytes\n" : "Remove memory limit of Process %d\n", arg1, arg2);
       setmemorylimit_wrapper(arg1, arg2);
       break;
 
