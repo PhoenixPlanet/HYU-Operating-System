@@ -149,5 +149,5 @@ sys_thread_join(void) {
     return -1;
   }
 
-  setmemorylimit(pid, limit);
+  return setmemorylimit(pid, limit);
  }
