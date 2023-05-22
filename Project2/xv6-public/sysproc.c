@@ -95,29 +95,29 @@ sys_uptime(void)
 int 
 sys_thread_create(void) {
   thread_t* thread;
-  void *(*start_routine)(void *);
-  void *arg;
+  int start_routine;
+  int arg;
 
-  if(argptr(0, (void*)&thread, sizeof(*thread_create)) < 0)
+  if(argptr(0, (void*)&thread, sizeof(*thread)) < 0)
     return -1;
 
-  if(argptr(1, (void*)&start_routine, sizeof(*start_routine)) < 0)
+  if(argint(1, &start_routine) < 0)
     return -1;
   
-  if(argptr(2, (void*)&arg, sizeof(*arg)) < 0)
+  if(argint(2, &arg) < 0)
     return -1;
 
-  return thread_create(thread, start_routine, arg);
+  return thread_create(thread, (void*(*)(void*))start_routine, (void*)arg);
 }
 
 int
 sys_thread_exit(void) {
-  void* retval;
+  int retval;
 
-  if(argptr(0, (void*)&retval, sizeof(*retval)) < 0)
+  if(argint(0, &retval) < 0)
     return -1;
 
-  thread_exit (retval);
+  thread_exit((void*)retval);
 
   return 0;
 }
