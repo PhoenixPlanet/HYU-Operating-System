@@ -254,6 +254,7 @@ fork(void)
     if (main_thread->thread_table[i].state != T_UNUSED) {
       // TODO: main thread 아닌 경우에 스택 페이지 재조정 필요
       if (main_thread->thread_table[i].thread == curproc) {
+        // just make new process's main stack base to original thread's stack base
         np->thread_table[i].ustack_bottom = main_thread->main_stack_bottom;
         np->main_stack_bottom = main_thread->thread_table[i].ustack_bottom;
 
@@ -302,15 +303,13 @@ exit(void)
 
   // check if current process is main thread
   acquire(&ptable.lock);
-  if (main_thread != curproc) {
-    main_thread->killed = 1;
+  if (main_thread != curproc) { // if this process is not main
+    main_thread->killed = 1; // to make main process wake up and exit
     if (main_thread->state == SLEEPING) {
       main_thread->state = RUNNABLE;
     }
-    //release(&ptable.lock);
-    //thread_exit(0);
     //cprintf("exiting not main - pid: %d, tid: %d\n", main_thread->pid, curproc->thread_info.thread_id);
-    sleep((void*)&curproc->thread_info, &ptable.lock);
+    sleep((void*)&curproc->thread_info, &ptable.lock); // sleep and wait until main process do exit 
   }
 
   //cprintf("start exiting main\n");
@@ -660,6 +659,7 @@ int setmemorylimit(int pid, int limit) {
   return -1;
 
 found:
+  // check if the proccess is valid
   if (!(p->state == SLEEPING || p->state == RUNNABLE || p->state == RUNNING)) {
     return -1;
   }
@@ -671,6 +671,8 @@ found:
   if (limit == 0) {
     p->memory_limit = 0;
   } else {
+    // check if the new limit is larger than old one
+    // also check if the new limit is larger than current memory size
     if (limit < p->memory_limit || limit < p->sz) {
       return -1;
     }
@@ -681,6 +683,7 @@ found:
   return 0;
 }
 
+/// @brief initialize all threads of the process except for current one
 void kill_other_threads() {
   TNode* target;
   struct proc* current_thread = myproc();
@@ -700,9 +703,11 @@ void change_main_to_curthread() {
   struct proc* current_thread = myproc();
   struct proc* main_thread = get_main_thread(current_thread);
   int i;
+  struct proc* p;
 
   acquire(&ptable.lock);
 
+  // copy or move all shared data among threads
   current_thread->sz = main_thread->sz;
   current_thread->pgdir = main_thread->pgdir;
   current_thread->pid = main_thread->pid;
@@ -727,9 +732,21 @@ void change_main_to_curthread() {
   current_thread->thread_num = 0;
   memset(current_thread->thread_table, 0, sizeof (current_thread->thread_table));
 
+  // set thread information
   current_thread->thread_info.is_main = TRUE;
   current_thread->thread_info.main_ptr = current_thread;
   current_thread->thread_info.thread_id = 0;
+
+  // change parent of all children process of original main thread
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
+    if (
+      (p->state == RUNNABLE || p->state == RUNNING || p->state == SLEEPING) && 
+      p->thread_info.is_main && 
+      p->parent == main_thread
+    ) {
+      p->parent = current_thread;
+    }
+  }
 
   init_thread_data(main_thread);
 
@@ -767,7 +784,7 @@ struct proc* get_main_thread(struct proc* p) {
   return main_thread;
 }
 
-// Simillar with allocproc + fork + exec but as a thread not process
+// Simillar with allocproc + fork + exec but create a thread not process
 int thread_create(thread_t *thread, void *(*start_routine)(void *), void *arg) {
   // first do allocproc
   struct proc* new_thread;
@@ -821,7 +838,7 @@ found:
   // alloc memory for thread
   acquire(&ptable.lock);
 
-  if (!already_allocated){
+  if (!already_allocated){ // if stack page has not alloced yet
     if ((sz = allocuvm(main_thread->pgdir, sz, sz + (2 * PGSIZE))) == 0) {
       // failed to alloc uvm
       target->state = T_UNUSED;
@@ -832,7 +849,7 @@ found:
     sp = sz;
     target->ustack_bottom = sz;
     //cprintf("target: %p, ustack: %p\n", target, target->ustack_bottom);
-  } else {
+  } else { // if this thread will use alloced page
     sp = target->ustack_bottom;
     //cprintf("target: %p, ustack: %p\n", target, target->ustack_bottom);
   }
@@ -854,6 +871,7 @@ found:
   target->state = T_USING;
   target->thread = new_thread;
 
+  // set thread info
   new_thread->thread_info.thread_id = main_thread->thread_num++;
   *thread = new_thread->thread_info.thread_id;
   new_thread->thread_info.is_main = FALSE;
@@ -881,6 +899,7 @@ void thread_exit (void *retval) {
     // TODO: Can main thread exit?
     // TODO: Then have to implement change main
     main_thread = current_thread;
+    exit();
     return;
   } else {
     main_thread = current_thread->thread_info.main_ptr;
@@ -897,6 +916,7 @@ void thread_exit (void *retval) {
   panic("unknown thread");
 
 found:
+  // wake up other thread which is waiting for me
   wakeup1(target);
 
   target->retval = retval;
@@ -929,7 +949,7 @@ int thread_join(thread_t thread, void** retval) {
 
 found:
   if (target->state == T_USING) {
-    sleep(target, &ptable.lock);
+    sleep(target, &ptable.lock); // sleep against the target thread
   }
 
   if (target->state != T_ZOMBIE) {
@@ -947,6 +967,9 @@ found:
   return 0;
 }
 
+/// @brief store inforamtion of all running(RUNNABLE, RUNNING, SLEEPING) process 
+/// @param pstat_list the information will be stored in this array
+/// @param procnum the number of running process will be stored here
 void proclist(PStat* pstat_list, int* procnum) {
   struct proc* p;
   int i = 0;
@@ -954,7 +977,7 @@ void proclist(PStat* pstat_list, int* procnum) {
   acquire(&ptable.lock);
   
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-    if((p->state == RUNNABLE || p->state == RUNNING) && p->thread_info.is_main){
+    if((p->state == RUNNABLE || p->state == RUNNING || p->state == SLEEPING) && p->thread_info.is_main){
       pstat_list[i].memory_limit = p->memory_limit;
       safestrcpy(pstat_list[i].name, p->name, sizeof(p->name));
       pstat_list[i].pid = p->pid;
