@@ -109,6 +109,7 @@ exec(char *path, char **argv)
   curproc->tf->eip = elf.entry;  // main
   curproc->tf->esp = sp;
 
+  // set memory limit 0 to make this process has no memory limit
   curproc->memory_limit = 0;
   
   switchuvm(curproc);
@@ -189,8 +190,8 @@ exec2(char *path, char **argv, int stacksize)
   end_op();
   ip = 0;
 
-  // Allocate two pages at the next page boundary.
-  // Make the first inaccessible.  Use the second as the user stack.
+  // Allocate (stacksize + 1) pages at the next page boundary.
+  // Make the first inaccessible.  Use the first stacksize stacks as the user stack.
   sz = PGROUNDUP(sz);
   if((sz = allocuvm(pgdir, sz, sz + (stacksize + 1)*PGSIZE)) == 0)
     goto bad;
@@ -231,6 +232,7 @@ exec2(char *path, char **argv, int stacksize)
   curproc->tf->eip = elf.entry;  // main
   curproc->tf->esp = sp;
 
+  // set memory limit 0 to make this process has no memory limit
   curproc->memory_limit = 0;
   
   switchuvm(curproc);

@@ -36,10 +36,10 @@ enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 enum threadstate { T_UNUSED, T_ALLOCATED, T_USING, T_ZOMBIE };
 
 typedef struct _TNode {
-  enum threadstate state;
-  struct proc* thread;
-  uint ustack_bottom;
-  void* retval;
+  enum threadstate state;      // State of thread
+  struct proc* thread;         // Pointer of thread proc struct
+  uint ustack_bottom;          // Base address of thread stack page
+  void* retval;                // Return value of thread
 } TNode;
 
 // Per-process state

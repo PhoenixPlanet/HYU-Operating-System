@@ -13,6 +13,7 @@
 #define MAX_INT_FIELD_LEN 15
 #define MAX_PROC_NAME_LEN 18
 
+// pamanger commands list
 static char* pmanager_cmds[] = {
 [PM_HELP]   "help",
 [PM_LIST]   "list",
@@ -22,6 +23,7 @@ static char* pmanager_cmds[] = {
 [PM_EXIT]   "exit",
 };
 
+// arguments of pmanager commands
 static char* pmanager_cmd_args[] = {
 [PM_HELP]   "",
 [PM_LIST]   "",
@@ -31,6 +33,7 @@ static char* pmanager_cmd_args[] = {
 [PM_EXIT]   "",
 };
 
+// explanation about pmanager commands
 static char* pmanager_help_msgs[] = {
 [PM_HELP]   "print help messages for pmanager commands",
 [PM_LIST]   "list information of all processes",
@@ -83,6 +86,7 @@ void print_help_msg_divider(char divider) {
   printf(2, "+\n");
 }
 
+/// @brief print list of pmanager commands to let users can know details
 void print_help_msgs() {
   int i, j;
 
@@ -108,12 +112,17 @@ void print_help_msgs() {
   }
 }
 
+/// @brief helper function to print error message
+/// @param errstr error message
 void print_error(char* errstr) {
   printf(2, "error: %s\n", errstr);
 }
 
-int getline(char *buf, int nbuf)
-{
+/// @brief get lines from standard input
+/// @param buf target char array to store input
+/// @param nbuf length of buffer array
+/// @return 0 when success and -1 when fail
+int getline(char *buf, int nbuf) {
   printf(2, "\n>>> ");
   memset(buf, 0, nbuf);
   gets(buf, nbuf);
@@ -122,9 +131,16 @@ int getline(char *buf, int nbuf)
   return 0;
 }
 
-// Inspired from HYU Computer Architecture Class Project (assembler.c)
-// Simillar with parsing assembly language opcode and args in assembler
-// Also brought codes from sh.c
+/// @brief 
+/// Inspired from HYU Computer Architecture Class Project (assembler.c).
+/// Simillar with parsing assembly language opcode and args in assembler.
+/// Also brought codes from xv6 shell implementation(sh.c).
+/// @param buf user input
+/// @param buf_end pointer at the end of user input(\0)
+/// @param cmd command will be stored here
+/// @param arg1 first argument will be stored here
+/// @param arg2 second argument will be stored here
+/// @return 0 when success, -1 when fail
 int parse_cmd(char* buf, char* buf_end, char* cmd, char* arg1, char* arg2) {
   char* target_args[3] = {cmd, arg1, arg2};
   char* s = buf;
@@ -150,11 +166,13 @@ int parse_cmd(char* buf, char* buf_end, char* cmd, char* arg1, char* arg2) {
   }
 
   for (i = 0; i < 3; i++) {
+    // iterate buffer and copy to target argument char array until reach at a white space
     for (start = s; s < buf_end && !strchr(whitespace, *s); s++) {
       target_args[i][s - start] = *s;
     }
     target_args[i][s - start] = '\0';
 
+    // flush whitespaces from buffer
     while (s < buf_end && strchr(whitespace, *s)) {
       s++;
     }
@@ -167,9 +185,13 @@ int parse_cmd(char* buf, char* buf_end, char* cmd, char* arg1, char* arg2) {
   return 0;
 }
 
+/// @brief get command type from given string
+/// @param cmd_str a char array than contains command string
+/// @return a command type as constant number
 int get_cmd_type(char* cmd_str) {
   int i;
   
+  // search pmanager_cmds array to find the target command
   for (i = 0; i < sizeof(pmanager_cmds) / sizeof(*pmanager_cmds); i++) {
     if (!strcmp(cmd_str, pmanager_cmds[i])) {
       return i;
@@ -179,6 +201,12 @@ int get_cmd_type(char* cmd_str) {
   return PM_ERROR;
 }
 
+/// @brief parse integer value from given string
+/// @param arg_str 
+/// a char array that contains a argument string 
+/// which will be converted as an integer value
+/// @param arg the result value will be stored here
+/// @return 0 when success, -1 when fail
 int get_int_arg(char* arg_str, int* arg) {
   int arg_val;
 
@@ -188,6 +216,7 @@ int get_int_arg(char* arg_str, int* arg) {
 
   arg_val = atoi(arg_str);
 
+  // check if the value is in the range of valid argument value
   if (arg_val < 0 || arg_val > 1000000000) {
     return -1;
   }
@@ -196,6 +225,11 @@ int get_int_arg(char* arg_str, int* arg) {
   return 0;
 }
 
+/// @brief 
+/// Get the length of string conversion of given integer value.
+/// (or you can think just as the number of digits)
+/// @param i target integer value
+/// @return number of digits of i
 int get_intlen(int i) {
   int len;
   
@@ -204,6 +238,8 @@ int get_intlen(int i) {
   return len;
 }
 
+/// @brief helper function to print a divider line for process list
+/// @param divider charater to use draw divider line
 void print_proc_list_divider(char divider) {
   int i, j;
 
@@ -224,11 +260,12 @@ void print_proc_list_divider(char divider) {
   printf(2, "+\n");
 }
 
+/// @brief print process list
 void print_proc_list() {
   int proc_num, i, j, k;
   int int_fields[3];
 
-  if (proclist(pstat_list, &proc_num) < 0) {
+  if (proclist(pstat_list, &proc_num) < 0) { // get process list from proclist system call
     print_error("getting process list failed");
   } else {
     printf(2, "\n");
@@ -284,6 +321,8 @@ void print_proc_list() {
   }
 }
 
+/// @brief wrapper function for kill system call
+/// @param pid target process id
 void kill_wrapper(int pid) {
   if (kill(pid) < 0) {
     print_error("kill failed");
@@ -294,21 +333,27 @@ void kill_wrapper(int pid) {
   sleep(10);
 }
 
+/// @brief wrapper function for exec system call
+/// @param path target process path
+/// @param stacksize stack page size for the process will be executed
 void execute_process(char* path, int stacksize) {
   char* argv[1] = {path};
 
-  if (fork() == 0) {
-    if (fork() == 0) {
+  if (fork() == 0) { // fork first
+    if (fork() == 0) { // and fork again
       if (exec2(path, argv, stacksize) < 0) {
-        print_error("execute failed");
+        print_error("execute failed"); // print error message when fail
         exit();
       }
     }
-    exit();
+    exit(); // don't wait for child process and just exit
   }
-  wait();
+  wait(); // wait for child process to be exit
 }
 
+/// @brief wrapper function for setmemorylimit system call
+/// @param pid target process id
+/// @param limit memory limit for the process
 void setmemorylimit_wrapper(int pid, int limit) {
   if (setmemorylimit(pid, limit) < 0) {
     print_error("set memory limit failed");
@@ -317,6 +362,10 @@ void setmemorylimit_wrapper(int pid, int limit) {
   }
 }
 
+/// @brief check the type of commands and execute the given command
+/// @param cmd_type type of the command
+/// @param arg1_str first argument
+/// @param arg2_str second argument
 void run_cmd(int cmd_type, char* arg1_str, char* arg2_str) {
   int arg1;
   int arg2;
