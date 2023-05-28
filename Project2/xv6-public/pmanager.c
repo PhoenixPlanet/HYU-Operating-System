@@ -349,6 +349,7 @@ void execute_process(char* path, int stacksize) {
     exit(); // don't wait for child process and just exit
   }
   wait(); // wait for child process to be exit
+  sleep(10);
 }
 
 /// @brief wrapper function for setmemorylimit system call

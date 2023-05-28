@@ -3,7 +3,7 @@
 #include "user.h"
 
 int main(int argc, char *argv[]) {
-    cprintf(2, "procexectarget executed\n");
+    printf(2, "procexectarget executed\n");
     while (1);
 
     exit();
