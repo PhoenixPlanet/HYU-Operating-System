@@ -32,3 +32,4 @@ SYSCALL(uptime)
 
 SYSCALL(realpath)
 SYSCALL(symbolic_link)
+SYSCALL(sync)

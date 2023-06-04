@@ -78,17 +78,23 @@ bget(uint dev, uint blockno)
   // Not cached; recycle an unused buffer.
   // Even if refcnt==0, B_DIRTY indicates a buffer is in use
   // because log.c has modified it but not yet committed it.
-  for(b = bcache.head.prev; b != &bcache.head; b = b->prev){
-    if(b->refcnt == 0 && (b->flags & B_DIRTY) == 0) {
-      b->dev = dev;
-      b->blockno = blockno;
-      b->flags = 0;
-      b->refcnt = 1;
-      release(&bcache.lock);
-      acquiresleep(&b->lock);
-      return b;
+  while (1) {
+    for(b = bcache.head.prev; b != &bcache.head; b = b->prev){
+      if(b->refcnt == 0 && (b->flags & B_DIRTY) == 0) {
+        b->dev = dev;
+        b->blockno = blockno;
+        b->flags = 0;
+        b->refcnt = 1;
+        release(&bcache.lock);
+        acquiresleep(&b->lock);
+        return b;
+      }
     }
+    release(&bcache.lock);
+    commit_wrapper();
+    acquire(&bcache.lock);
   }
+  
   panic("bget: no buffers");
 }
 

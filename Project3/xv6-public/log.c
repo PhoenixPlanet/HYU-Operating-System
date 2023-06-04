@@ -48,7 +48,7 @@ struct log {
 struct log log;
 
 static void recover_from_log(void);
-static void commit();
+static int commit();
 
 void
 initlog(int dev)
@@ -129,10 +129,12 @@ begin_op(void)
   while(1){
     if(log.committing){
       sleep(&log, &log.lock);
-    } else if(log.lh.n + (log.outstanding+1)*MAXOPBLOCKS > LOGSIZE){
-      // this op might exhaust log space; wait for commit.
-      sleep(&log, &log.lock);
-    } else {
+    } 
+    // else if(log.lh.n + (log.outstanding+1)*MAXOPBLOCKS > LOGSIZE){
+    //   // this op might exhaust log space; commit.
+    //   commit();
+    // } 
+    else {
       log.outstanding += 1;
       release(&log.lock);
       break;
@@ -145,32 +147,38 @@ begin_op(void)
 void
 end_op(void)
 {
-  int do_commit = 0;
+  // int do_commit = 0;
+
+  // acquire(&log.lock);
+  // log.outstanding -= 1;
+  // if(log.committing)
+  //   panic("log.committing");
+  // if(log.outstanding == 0){
+  //   do_commit = 1;
+  //   log.committing = 1;
+  // } else {
+  //   // begin_op() may be waiting for log space,
+  //   // and decrementing log.outstanding has decreased
+  //   // the amount of reserved space.
+  //   wakeup(&log);
+  // }
+  // release(&log.lock);
+
+  // if(do_commit){
+  //   // call commit w/o holding locks, since not allowed
+  //   // to sleep with locks.
+  //   commit();
+  //   acquire(&log.lock);
+  //   log.committing = 0;
+  //   wakeup(&log);
+  //   release(&log.lock);
+  // }
 
   acquire(&log.lock);
   log.outstanding -= 1;
-  if(log.committing)
-    panic("log.committing");
-  if(log.outstanding == 0){
-    do_commit = 1;
-    log.committing = 1;
-  } else {
-    // begin_op() may be waiting for log space,
-    // and decrementing log.outstanding has decreased
-    // the amount of reserved space.
-    wakeup(&log);
-  }
-  release(&log.lock);
 
-  if(do_commit){
-    // call commit w/o holding locks, since not allowed
-    // to sleep with locks.
-    commit();
-    acquire(&log.lock);
-    log.committing = 0;
-    wakeup(&log);
-    release(&log.lock);
-  }
+  //wakeup(&log);
+  release(&log.lock);
 }
 
 // Copy modified blocks from cache to log.
@@ -189,16 +197,47 @@ write_log(void)
   }
 }
 
-static void
+static int
 commit()
 {
+  int flushed_num = 0;
+
+  while (1) {
+    if (log.committing) { // did someone call commit already?
+      sleep(&log, &log.lock);
+    } 
+    // else if (log.outstanding > 0) { // no active transaction
+    //   sleep(&log, &log.lock);
+    // }
+  }
+
+  log.committing = 1;
+  release(&log.lock);
+
   if (log.lh.n > 0) {
+    flushed_num = log.lh.n;
     write_log();     // Write modified blocks from cache to log
     write_head();    // Write header to disk -- the real commit
     install_trans(); // Now install writes to home locations
     log.lh.n = 0;
     write_head();    // Erase the transaction from the log
   }
+
+  acquire(&log.lock);
+  log.committing = 0;
+  wakeup(&log);
+
+  return flushed_num;
+}
+
+int commit_wrapper() {
+  int n;
+
+  acquire(&log.lock);
+  n = commit();
+  release(&log.lock);
+
+  return n;
 }
 
 // Caller has modified b->data and is done with the buffer.
@@ -215,8 +254,10 @@ log_write(struct buf *b)
 {
   int i;
 
-  if (log.lh.n >= LOGSIZE || log.lh.n >= log.size - 1)
-    panic("too big a transaction");
+  if (log.lh.n >= LOGSIZE || log.lh.n >= log.size - 1) {
+    //panic("too big a transaction"); 
+    commit_wrapper();
+  }
   if (log.outstanding < 1)
     panic("log_write outside of trans");
 

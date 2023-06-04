@@ -106,6 +106,7 @@ extern int sys_uptime(void);
 extern int sys_symbolic_link(void);
 
 extern int sys_realpath(void);
+extern int sys_sync(void);
 
 static int (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
@@ -131,6 +132,7 @@ static int (*syscalls[])(void) = {
 [SYS_close]   sys_close,
 [SYS_realpath] sys_realpath,
 [SYS_symbolic_link] sys_symbolic_link,
+[SYS_sync]    sys_sync,
 };
 
 void

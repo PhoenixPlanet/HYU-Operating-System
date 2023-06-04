@@ -23,3 +23,4 @@
 
 #define SYS_realpath 22
 #define SYS_symbolic_link 23
+#define SYS_sync 24
