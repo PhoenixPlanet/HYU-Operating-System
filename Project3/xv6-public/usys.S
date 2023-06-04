@@ -31,4 +31,4 @@ SYSCALL(sleep)
 SYSCALL(uptime)
 
 SYSCALL(realpath)
-SYS(symbolic_link)
+SYSCALL(symbolic_link)
