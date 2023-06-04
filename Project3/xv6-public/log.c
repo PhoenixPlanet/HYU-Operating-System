@@ -130,10 +130,10 @@ begin_op(void)
     if(log.committing){
       sleep(&log, &log.lock);
     } 
-    // else if(log.lh.n + (log.outstanding+1)*MAXOPBLOCKS > LOGSIZE){
-    //   // this op might exhaust log space; commit.
-    //   commit();
-    // } 
+    else if(log.lh.n + (log.outstanding+1)*MAXOPBLOCKS > LOGSIZE){
+      // this op might exhaust log space; commit.
+      commit();
+    } 
     else {
       log.outstanding += 1;
       release(&log.lock);
@@ -177,7 +177,7 @@ end_op(void)
   acquire(&log.lock);
   log.outstanding -= 1;
 
-  //wakeup(&log);
+  wakeup(&log);
   release(&log.lock);
 }
 
@@ -205,10 +205,11 @@ commit()
   while (1) {
     if (log.committing) { // did someone call commit already?
       sleep(&log, &log.lock);
-    } 
-    // else if (log.outstanding > 0) { // no active transaction
-    //   sleep(&log, &log.lock);
-    // }
+    } else if (log.outstanding > 0) { // no active transaction
+      sleep(&log, &log.lock);
+    } else {
+      break;
+    }
   }
 
   log.committing = 1;
@@ -255,8 +256,7 @@ log_write(struct buf *b)
   int i;
 
   if (log.lh.n >= LOGSIZE || log.lh.n >= log.size - 1) {
-    //panic("too big a transaction"); 
-    commit_wrapper();
+    panic("too big a transaction"); 
   }
   if (log.outstanding < 1)
     panic("log_write outside of trans");

@@ -27,7 +27,6 @@ exec(char *path, char **argv)
     return -1;
   }
   ilock(ip);
-  cprintf("exec %d\n", getinum(ip));
   pgdir = 0;
 
   // Check ELF header

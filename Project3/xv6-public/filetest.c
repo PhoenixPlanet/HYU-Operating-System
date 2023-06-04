@@ -66,6 +66,75 @@ big_file_test(void)
   printf(2, "big files ok\n");
 }
 
+#define SMALLBLOCK 30
+
+void
+write_small_test(char* name)
+{
+  int i, fd;
+  int buf[BSIZE];
+
+  printf(2, "small files test\n");
+
+  fd = open(name, O_CREATE|O_RDWR);
+  if(fd < 0){
+    printf(2, "error: creat small failed!\n");
+    exit();
+  }
+
+  for(i = 0; i < SMALLBLOCK; i++){
+    buf[(BSIZE/sizeof(int)) - 1] = i;
+    if(write(fd, (char*)buf, 512) != 512){
+      printf(2, "error: write small file failed\n", i);
+      exit();
+    }
+    if (i % 1000 == 0)
+      printf(2, "write: %d / %d\n", i, SMALLBLOCK);
+  }
+  //printf(2, "flushed %d\n", sync());
+  close(fd);
+}
+
+void read_small_test(char* name) {
+  int i, fd, n;
+  int buf[BSIZE/sizeof(int)];
+
+  fd = open(name, O_RDONLY);
+  if(fd < 0){
+    printf(2, "error: open small failed!\n");
+    exit();
+  }
+
+  n = 0;
+  for(;;){
+    i = read(fd, (char*)buf, 512);
+    if(i == 0){
+      if(n == SMALLBLOCK - 1){
+        printf(2, "read only %d blocks from small", n);
+        exit();
+      }
+      break;
+    } else if(i != 512){
+      printf(2, "read failed %d\n", i);
+      exit();
+    }
+    if(buf[(BSIZE/sizeof(int)) - 1] != n){
+      printf(2, "read content of block %d is %d\n",
+             n, buf[(BSIZE/sizeof(int)) - 1]);
+      exit();
+    }
+    n++;
+    if (n % 1000 == 0)
+      printf(2, "read: %d / %d\n", n, SMALLBLOCK);
+  }
+  close(fd);
+  if(unlink(name) < 0){
+    printf(2, "unlink small failed\n");
+    exit();
+  }
+  printf(2, "small files ok\n");
+}
+
 void get_filename_test(char* target) {
   char real[PATHSIZ];
   
@@ -129,7 +198,15 @@ main(int argc, char *argv[])
 
   //symlink_test();
 
-  big_file_test();
+  //big_file_test();
+
+  if (strcmp(argv[1], "w") == 0) {
+    write_small_test("small1");
+  }
+
+  if (strcmp(argv[1], "r") == 0) {
+    read_small_test("small1");
+  }
 
   exit();
 }
