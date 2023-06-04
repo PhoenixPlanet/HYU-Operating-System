@@ -182,7 +182,30 @@ sys_realpath(void) {
 
 int
 sys_symbolic_link(void) {
+  char name[DIRSIZ], *new, *old;
+  char real_path[PATHSIZ];
+  struct inode *dp, *ip;
 
+  if(argstr(0, &old) < 0 || argstr(1, &new) < 0) {
+    return -1;
+  }
+
+  if (get_realpath(old, real_path) == 0) {
+    return -1;
+  }
+
+  begin_op();
+  if((ip = namei(real_path)) == 0){
+    end_op();
+    return -1;
+  }
+
+  ilock(ip);
+  if(ip->type == T_DIR){
+    iunlockput(ip);
+    end_op();
+    return -1;
+  }
 }
 
 // Is the directory dp empty except for "." and ".." ?
