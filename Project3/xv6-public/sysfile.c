@@ -182,7 +182,7 @@ sys_realpath(void) {
 
 int
 sys_symbolic_link(void) {
-
+  return -1;
 }
 
 // Is the directory dp empty except for "." and ".." ?

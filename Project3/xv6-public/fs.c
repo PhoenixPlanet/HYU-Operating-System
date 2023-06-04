@@ -397,7 +397,7 @@ bmap(struct inode *ip, uint bn)
   }
 
   bn -= NINDIRECT;
-  if (bn < (NINDIRECT * NINDIRECT)) {
+  if (bn < NDOUBLE_INDIRECT) {
     if ((addr = ip->addrs[NDIRECT + 1]) == 0) {
       ip->addrs[NDIRECT + 1] = addr = balloc(ip->dev);
     }
@@ -420,32 +420,32 @@ bmap(struct inode *ip, uint bn)
     return addr;
   }
 
-  bn -= NINDIRECT * NINDIRECT;
-  if (bn < (NINDIRECT * NINDIRECT * NINDIRECT)) {
+  bn -= NDOUBLE_INDIRECT;
+  if (bn < NTRIPLE_INDIRECT) {
     if ((addr = ip->addrs[NDIRECT + 2]) == 0) {
       ip->addrs[NDIRECT + 2] = addr = balloc(ip->dev);
     }
     bp = bread(ip->dev, addr);
     a = (uint*)bp->data;
 
-    if ((addr = a[bn / (NINDIRECT * NINDIRECT)] == 0)) {
-      a[bn / (NINDIRECT * NINDIRECT)] = addr = balloc(ip->dev);
+    if ((addr = a[bn / NDOUBLE_INDIRECT]) == 0) {
+      a[bn / NDOUBLE_INDIRECT] = addr = balloc(ip->dev);
       log_write(bp);
     }
     brelse(bp);
     bp = bread(ip->dev, addr);
     a = (uint*)bp->data;
 
-    if ((addr = a[(bn % (NINDIRECT * NINDIRECT)) / NINDIRECT]) == 0) {
-      a[(bn % (NINDIRECT * NINDIRECT)) / NINDIRECT] = addr = balloc(ip->dev);
+    if ((addr = a[(bn % NDOUBLE_INDIRECT) / NINDIRECT]) == 0) {
+      a[(bn % NDOUBLE_INDIRECT) / NINDIRECT] = addr = balloc(ip->dev);
       log_write(bp);
     }
     brelse(bp);
     bp = bread(ip->dev, addr);
     a = (uint*)bp->data;
 
-    if ((addr = a[(bn % (NINDIRECT * NINDIRECT)) % NINDIRECT]) == 0) {
-      a[(bn % (NINDIRECT * NINDIRECT)) % NINDIRECT] = addr = balloc(ip->dev);
+    if ((addr = a[(bn % NDOUBLE_INDIRECT) % NINDIRECT]) == 0) {
+      a[(bn % NDOUBLE_INDIRECT) % NINDIRECT] = addr = balloc(ip->dev);
       log_write(bp);
     }
     brelse(bp);
@@ -775,8 +775,8 @@ nameiparent(char *path, char *name)
   return namex(path, 1, name);
 }
 
-const char* parent_dir = "..";
-const char* cur_dir = ".";
+char* parent_dir = "..";
+char* cur_dir = ".";
 
 // caller should call ilock for ip
 char* 
@@ -825,10 +825,10 @@ get_inode_path(struct inode* ip, char* result) {
   int i, n, name_len, path_off;
 
   memset(result, '\0', PATHSIZ);
-  *result = '/';
-  path_off = 1;
+  path_off = 0;
 
   if (ip->inum == ROOTINO) {
+    *result = '/';
     return result;
   }
 
@@ -860,6 +860,7 @@ get_inode_path(struct inode* ip, char* result) {
   n = i;
   for (i = n - 1; i >= 0; i--) {
     name_len = strlen(buf[i]);
+    result[path_off++] = '/';
     memmove(result + path_off, buf[i], name_len);
     path_off += name_len;
   }
@@ -868,7 +869,7 @@ get_inode_path(struct inode* ip, char* result) {
 }
 
 char*
-get_realpath(const char* target_path, char* result) {
+get_realpath(char* target_path, char* result) {
   struct inode* ip;
 
   ip = namei(target_path);
