@@ -197,7 +197,7 @@ writetest1(void)
     exit();
   }
 
-  for(i = 0; i < MAXFILE; i++){
+  for(i = 0; i < 20000; i++){
     ((int*)buf)[0] = i;
     if(write(fd, buf, 512) != 512){
       printf(stdout, "error: write big file failed\n", i);
@@ -217,7 +217,7 @@ writetest1(void)
   for(;;){
     i = read(fd, buf, 512);
     if(i == 0){
-      if(n == MAXFILE - 1){
+      if(n == 20000 - 1){
         printf(stdout, "read only %d blocks from big", n);
         exit();
       }
