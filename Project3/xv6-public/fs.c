@@ -492,7 +492,7 @@ itrunc(struct inode *ip)
     for (j = 0; j < NINDIRECT; j++) {
       if (a[j]) {
         bp2 = bread(ip->dev, a[j]);
-        a2 = (uint*)bp->data;
+        a2 = (uint*)bp2->data;
         for (k = 0; k < NINDIRECT; k++) {
           if (a2[k]) {
             bfree(ip->dev, a2[k]);
@@ -513,11 +513,11 @@ itrunc(struct inode *ip)
     for (j = 0; j < NINDIRECT; j++) {
       if (a[j]) {
         bp2 = bread(ip->dev, a[j]);
-        a2 = (uint*)bp->data;
+        a2 = (uint*)bp2->data;
         for (k = 0; k < NINDIRECT; k++) {
           if (a2[k]) {
             bp3 = bread(ip->dev, a2[k]);
-            a3 = (uint*)bp->data;
+            a3 = (uint*)bp3->data;
             for (l = 0; l < NINDIRECT; l++) {
               if (a3[l]) {
                 bfree(ip->dev, a3[l]);
@@ -879,7 +879,9 @@ get_realpath(char* target_path, char* result) {
     return 0;
   }
 
+  ilock(ip);
   if (ip->type == T_DIR) {
+    iunlock(ip);
     if (get_inode_path(ip, result) == 0) {
       iput(ip);
       return 0;
@@ -888,7 +890,7 @@ get_realpath(char* target_path, char* result) {
     iput(ip);
     return result;
   }
-  iput(ip);
+  iunlockput(ip);
   
   dp = nameiparent(target_path, cur_name);
 
@@ -899,8 +901,44 @@ get_realpath(char* target_path, char* result) {
   iput(dp);
 
   res_len = strlen(result);
-  result[res_len++] = '/';
+  if (result[res_len - 1] != '/')
+    result[res_len++] = '/';
   memmove(result + res_len, cur_name, strlen(cur_name));
 
   return result;
+}
+
+struct inode*
+get_exec_inode(char* path) {
+  struct inode *ip;
+  struct inode *real_ip;
+  int sym_path_len;
+  char sym_path[PATHSIZ];
+
+  if ((ip = namei(path)) == 0) {
+    return 0;
+  }
+
+  ilock(ip);
+  if (ip->type == T_SYM) {
+    readi(ip, (char*)&sym_path_len, 0, sizeof(int));
+    if (sym_path_len <= 0) {
+      iunlockput(ip);
+      return 0;
+    }
+    readi(ip, sym_path, sizeof(int), sym_path_len);
+    if ((real_ip = namei(sym_path)) == 0) {
+      iunlockput(ip);
+      return 0;
+    }
+    iunlockput(ip);
+    ip = real_ip;
+    ilock(ip);
+  }
+  iunlock(ip);
+  return ip;
+}
+
+uint getinum(struct inode* target) {
+  return target->inum;
 }
