@@ -25,6 +25,7 @@ int sleep(int);
 int uptime(void);
 
 int realpath(const char*, char*);
+int symbolic_link(const char*, const char *);
 
 // ulib.c
 int stat(const char*, struct stat*);

@@ -871,14 +871,36 @@ get_inode_path(struct inode* ip, char* result) {
 char*
 get_realpath(char* target_path, char* result) {
   struct inode* ip;
+  struct inode* dp;
+  char cur_name[DIRSIZ];
+  int res_len;
 
-  ip = namei(target_path);
-
-  if (get_inode_path(ip, result) == 0) {
-    iput(ip);
+  if ((ip = namei(target_path)) == 0) {
     return 0;
   }
 
+  if (ip->type == T_DIR) {
+    if (get_inode_path(ip, result) == 0) {
+      iput(ip);
+      return 0;
+    }
+
+    iput(ip);
+    return result;
+  }
   iput(ip);
+  
+  dp = nameiparent(target_path, cur_name);
+
+  if (get_inode_path(dp, result) == 0) {
+    iput(dp);
+    return 0;
+  }
+  iput(dp);
+
+  res_len = strlen(result);
+  result[res_len++] = '/';
+  memmove(result + res_len, cur_name, strlen(cur_name));
+
   return result;
 }
