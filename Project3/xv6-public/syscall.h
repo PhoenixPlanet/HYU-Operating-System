@@ -22,3 +22,4 @@
 #define SYS_close  21
 
 #define SYS_realpath 22
+#define SYS_symbolic_link 23
