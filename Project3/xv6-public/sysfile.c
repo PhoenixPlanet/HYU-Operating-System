@@ -182,9 +182,11 @@ sys_realpath(void) {
 
 int
 sys_symbolic_link(void) {
-  char name[DIRSIZ], *new, *old;
+  char *new, *old;
   char real_path[PATHSIZ];
-  struct inode *dp, *ip;
+  struct inode *ip, *sym_ip;
+  uint ip_dev;
+  int real_path_len;
 
   if(argstr(0, &old) < 0 || argstr(1, &new) < 0) {
     return -1;
@@ -193,19 +195,34 @@ sys_symbolic_link(void) {
   if (get_realpath(old, real_path) == 0) {
     return -1;
   }
+  real_path_len = strlen(real_path) + 1;
 
   begin_op();
   if((ip = namei(real_path)) == 0){
     end_op();
     return -1;
   }
-  return -1;
+
   ilock(ip);
   if(ip->type == T_DIR){
     iunlockput(ip);
     end_op();
     return -1;
   }
+  ip_dev = ip->dev;
+  iunlockput(ip);
+
+  if ((sym_ip = create(new, T_SYM, 0, 0)) == 0) {
+    end_op();
+    return -1;
+  }
+
+  writei(sym_ip, (char*)&real_path_len, 0, sizeof(int));
+  writei(sym_ip, real_path, sizeof(int), real_path_len);
+  iunlockput(sym_ip);
+
+  end_op();
+  return 0;
 }
 
 // Is the directory dp empty except for "." and ".." ?
@@ -333,6 +350,9 @@ sys_open(void)
   int fd, omode;
   struct file *f;
   struct inode *ip;
+  struct inode *real_ip;
+  int sym_path_len;
+  char sym_path[PATHSIZ];
 
   if(argstr(0, &path) < 0 || argint(1, &omode) < 0)
     return -1;
@@ -355,6 +375,26 @@ sys_open(void)
       iunlockput(ip);
       end_op();
       return -1;
+    }
+    if (ip->type == T_SYM && omode != O_STAT) {
+      readi(ip, (char*)&sym_path_len, 0, sizeof(int));
+      if (sym_path_len <= 0) {
+        iunlockput(ip);
+        end_op();
+        return -1;
+      }
+      readi(ip, sym_path, sizeof(int), sym_path_len);
+      if ((real_ip = namei(path)) == 0) {
+        iunlockput(ip);
+        end_op();
+        return -1;
+      }
+      iunlockput(ip);
+      ip = real_ip;
+      ilock(ip);
+    }
+    if (omode == O_STAT) {
+      omode = O_RDONLY;
     }
   }
 
