@@ -52,6 +52,9 @@ struct inode*   nameiparent(char*, char*);
 int             readi(struct inode*, char*, uint, uint);
 void            stati(struct inode*, struct stat*);
 int             writei(struct inode*, char*, uint, uint);
+char*           get_inode_name(struct inode*, char*, struct inode**);
+char*           get_inode_path(struct inode*, char*);
+char*           get_realpath(char*, char*);
 
 // ide.c
 void            ideinit(void);

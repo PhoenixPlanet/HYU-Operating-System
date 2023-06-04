@@ -164,6 +164,27 @@ bad:
   return -1;
 }
 
+int
+sys_realpath(void) {
+  char* path;
+  char* result;
+
+  if (argstr(0, &path) < 0 || argptr(1, (void*)&result, PATHSIZ * sizeof(char))) {
+    return -1;
+  }
+
+  if (get_realpath(path, result) == 0) {
+    return -1;
+  }
+
+  return 0;
+}
+
+int
+sys_symbolic_link(void) {
+
+}
+
 // Is the directory dp empty except for "." and ".." ?
 static int
 isdirempty(struct inode *dp)

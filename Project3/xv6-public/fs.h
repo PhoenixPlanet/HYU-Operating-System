@@ -49,6 +49,8 @@ struct dinode {
 
 // Directory is a file containing a sequence of dirent structures.
 #define DIRSIZ 14
+#define MAXPATHDEPTH 16
+#define PATHSIZ (DIRSIZ * MAXPATHDEPTH)
 
 struct dirent {
   ushort inum;

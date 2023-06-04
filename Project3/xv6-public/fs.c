@@ -774,3 +774,110 @@ nameiparent(char *path, char *name)
 {
   return namex(path, 1, name);
 }
+
+const char* parent_dir = "..";
+const char* cur_dir = ".";
+
+// caller should call ilock for ip
+char* 
+get_inode_name(struct inode* ip, char* name, struct inode** parent_ip) {
+  struct dirent de;
+  struct inode* dp;
+  int off;
+
+  memset(name, '\0', DIRSIZ);
+
+  if (ip->inum == ROOTINO) {
+    *name = '/';
+    return name;
+  }
+
+  if ((dp = dirlookup(ip, parent_dir, 0)) == 0) {
+    return 0;
+  }
+
+  ilock(dp);
+
+  for (off = 0; off < dp->size; off += sizeof(de)){
+    if (readi(dp, (char*)&de, off, sizeof(de)) != sizeof(de)) {
+      panic("dirlink read");
+    }
+    if (de.inum == ip->inum) {
+      break;
+    }
+  }
+
+  strncpy(name, de.name, DIRSIZ);
+
+  iunlock(dp);
+
+  *parent_ip = dp;
+
+  return name;
+}
+
+char*
+get_inode_path(struct inode* ip, char* result) {
+  struct inode* target;
+  struct inode* parent_ip;
+  char cur_name[DIRSIZ];
+  char buf[MAXPATHDEPTH][DIRSIZ];
+  int i, n, name_len, path_off;
+
+  memset(result, '\0', PATHSIZ);
+  *result = '/';
+  path_off = 1;
+
+  if (ip->inum == ROOTINO) {
+    return result;
+  }
+
+  for (i = 0, target = ip; (i < MAXPATHDEPTH) && (target->inum != ROOTINO); i++, target = parent_ip) {
+    ilock(target);
+
+    if ((get_inode_name(target, cur_name, &parent_ip)) == 0) {
+      return 0;
+    }
+
+    strncpy(buf[i], cur_name, DIRSIZ);
+
+    if (target != ip) {
+      iunlockput(target);
+    } else {
+      iunlock(target);
+    }
+  }
+
+  if (target->inum != ROOTINO) {
+    iput(target);
+    return 0; // dir depth was too deep
+  }
+
+  if (target != ip) {
+    iput(target);
+  }
+
+  n = i;
+  for (i = n - 1; i >= 0; i--) {
+    name_len = strlen(buf[i]);
+    memmove(result + path_off, buf[i], name_len);
+    path_off += name_len;
+  }
+
+  return result;
+}
+
+char*
+get_realpath(const char* target_path, char* result) {
+  struct inode* ip;
+
+  ip = namei(target_path);
+
+  if (get_inode_path(ip, result) == 0) {
+    iput(ip);
+    return 0;
+  }
+
+  iput(ip);
+  return result;
+}
