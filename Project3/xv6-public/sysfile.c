@@ -180,51 +180,6 @@ sys_realpath(void) {
   return 0;
 }
 
-int
-sys_symbolic_link(void) {
-  char *new, *old;
-  char real_path[PATHSIZ];
-  struct inode *ip, *sym_ip;
-  uint ip_dev;
-  int real_path_len;
-
-  if(argstr(0, &old) < 0 || argstr(1, &new) < 0) {
-    return -1;
-  }
-
-  if (get_realpath(old, real_path) == 0) {
-    return -1;
-  }
-  real_path_len = strlen(real_path) + 1;
-
-  begin_op();
-  if((ip = namei(real_path)) == 0){
-    end_op();
-    return -1;
-  }
-
-  ilock(ip);
-  if(ip->type == T_DIR){
-    iunlockput(ip);
-    end_op();
-    return -1;
-  }
-  ip_dev = ip->dev;
-  iunlockput(ip);
-
-  if ((sym_ip = create(new, T_SYM, 0, 0)) == 0) {
-    end_op();
-    return -1;
-  }
-
-  writei(sym_ip, (char*)&real_path_len, 0, sizeof(int));
-  writei(sym_ip, real_path, sizeof(int), real_path_len);
-  iunlockput(sym_ip);
-
-  end_op();
-  return 0;
-}
-
 // Is the directory dp empty except for "." and ".." ?
 static int
 isdirempty(struct inode *dp)
@@ -344,6 +299,50 @@ create(char *path, short type, short major, short minor)
 }
 
 int
+sys_symbolic_link(void) {
+  char *new, *old;
+  char real_path[PATHSIZ];
+  struct inode *ip, *sym_ip;
+  int real_path_len;
+
+  if(argstr(0, &old) < 0 || argstr(1, &new) < 0) {
+    return -1;
+  }
+
+  if (get_realpath(old, real_path) == 0) {
+    return -1;
+  }
+  real_path_len = strlen(real_path) + 1;
+
+  begin_op();
+  if((ip = namei(real_path)) == 0){
+    end_op();
+    return -1;
+  }
+
+  ilock(ip);
+  if(ip->type == T_DIR){
+    iunlockput(ip);
+    end_op();
+    return -1;
+  }
+  iunlockput(ip);
+
+  if ((sym_ip = create(new, T_SYM, 0, 0)) == 0) {
+    end_op();
+    return -1;
+  }
+
+  writei(sym_ip, (char*)&real_path_len, 0, sizeof(int));
+  writei(sym_ip, real_path, sizeof(int), real_path_len);
+  iupdate(sym_ip);
+  iunlockput(sym_ip);
+
+  end_op();
+  return 0;
+}
+
+int
 sys_open(void)
 {
   char *path;
@@ -371,7 +370,7 @@ sys_open(void)
       return -1;
     }
     ilock(ip);
-    if(ip->type == T_DIR && omode != O_RDONLY){
+    if(ip->type == T_DIR && !(omode == O_RDONLY || omode == O_STAT)){
       iunlockput(ip);
       end_op();
       return -1;
@@ -384,7 +383,7 @@ sys_open(void)
         return -1;
       }
       readi(ip, sym_path, sizeof(int), sym_path_len);
-      if ((real_ip = namei(path)) == 0) {
+      if ((real_ip = namei(sym_path)) == 0) {
         iunlockput(ip);
         end_op();
         return -1;
