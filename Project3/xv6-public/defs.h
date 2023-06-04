@@ -55,6 +55,8 @@ int             writei(struct inode*, char*, uint, uint);
 char*           get_inode_name(struct inode*, char*, struct inode**);
 char*           get_inode_path(struct inode*, char*);
 char*           get_realpath(char*, char*);
+struct inode*   get_exec_inode(char*);
+uint            getinum(struct inode*);
 
 // ide.c
 void            ideinit(void);
