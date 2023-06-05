@@ -92,7 +92,7 @@ void            initlog(int dev);
 void            log_write(struct buf*);
 void            begin_op();
 void            end_op();
-int             commit_wrapper();
+int             commit_wrapper(int);
 
 // mp.c
 extern int      ismp;
@@ -195,3 +195,6 @@ void            clearpteu(pde_t *pgdir, char *uva);
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))
+
+#define TRUE 1
+#define FALSE 0

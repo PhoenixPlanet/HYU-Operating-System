@@ -215,7 +215,7 @@ write_log(void)
 }
 
 static int
-commit()
+commit(int sync_all)
 {
   int flushed_num = 0;
   int no_ref_n;
@@ -262,20 +262,30 @@ commit()
   
   //--------- buffer flush call from log_write -------------
   if (log.lh.n > 0) {
-    bfind_noref_dirty(log.lh.n, log.lh.block, no_ref_blocks, ref_blocks, &no_ref_n, &ref_n);
-    for (i = 0; i < no_ref_n; i++) {
-      log.lh.block[i] = no_ref_blocks[i];
+    if (sync_all) {
+      flushed_num = log.lh.n;
+      write_log();     // Write modified blocks from cache to log
+      write_head();    // Write header to disk -- the real commit
+      install_trans(); // Now install writes to home locations
+      log.lh.n = 0;
+      write_head();    // Erase the transaction from the log
+    } else {
+      bfind_noref_dirty(log.lh.n, log.lh.block, no_ref_blocks, ref_blocks, &no_ref_n, &ref_n);
+      for (i = 0; i < no_ref_n; i++) {
+        log.lh.block[i] = no_ref_blocks[i];
+      }
+      log.lh.n = no_ref_n;
+      flushed_num = no_ref_n;
+      write_log();
+      write_head();
+      install_trans();
+      log.lh.n = 0;
+      write_head();
+      for (i = 0; i < ref_n; i++) {
+        log.lh.block[i] = ref_blocks[i];
+      }
+      log.lh.n = ref_n;
     }
-    log.lh.n = no_ref_n;
-    write_log();
-    write_head();
-    install_trans();
-    log.lh.n = 0;
-    write_head();
-    for (i = 0; i < ref_n; i++) {
-      log.lh.block[i] = ref_blocks[i];
-    }
-    log.lh.n = ref_n;
   }
   //--------- buffer flush call from log_write --------------
 
@@ -283,14 +293,15 @@ commit()
   log.committing = 0;
   wakeup(&log);
 
+  //cprintf("commit %d blocks\n", flushed_num);
   return flushed_num;
 }
 
-int commit_wrapper() {
+int commit_wrapper(int sync_all) {
   int n;
 
   acquire(&log.lock);
-  n = commit();
+  n = commit(sync_all);
   release(&log.lock);
 
   return n;
@@ -328,7 +339,7 @@ log_write(struct buf *b)
   release(&log.lock);
 
   if (log.lh.n >= LOGSIZE - 3 || log.lh.n >= log.size - 4) {
-    commit_wrapper();
+    commit_wrapper(FALSE);
   }
   //--------- buffer flush call from log_write -------------
 

@@ -528,5 +528,5 @@ sys_pipe(void)
 
 int
 sys_sync() {
-  return commit_wrapper();
+  return commit_wrapper(TRUE);
 }
