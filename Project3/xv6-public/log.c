@@ -125,21 +125,36 @@ recover_from_log(void)
 void
 begin_op(void)
 {
+  //--------- buffer flush call from begin_op -------------
+  // acquire(&log.lock);
+  // while(1){
+  //   if(log.committing){
+  //     sleep(&log, &log.lock);
+  //   } 
+  //   else if(log.lh.n + (log.outstanding+1)*MAXOPBLOCKS > LOGSIZE){
+  //     // this op might exhaust log space; commit.
+  //     commit();
+  //   }
+  //   else {
+  //     log.outstanding += 1;
+  //     release(&log.lock);
+  //     break;
+  //   }
+  // }
+  //--------- buffer flush call from begin_op -------------
+
+  //--------- buffer flush call from log_write -------------
   acquire(&log.lock);
   while(1){
     if(log.committing){
       sleep(&log, &log.lock);
-    } 
-    else if(log.lh.n + (log.outstanding+1)*MAXOPBLOCKS > LOGSIZE){
-      // this op might exhaust log space; commit.
-      commit();
-    } 
-    else {
+    } else {
       log.outstanding += 1;
       release(&log.lock);
       break;
     }
   }
+  //--------- buffer flush call from log_write -------------
 }
 
 // called at the end of each FS system call.
@@ -147,6 +162,7 @@ begin_op(void)
 void
 end_op(void)
 {
+  //-----------original--------------
   // int do_commit = 0;
 
   // acquire(&log.lock);
@@ -173,6 +189,7 @@ end_op(void)
   //   wakeup(&log);
   //   release(&log.lock);
   // }
+  //-----------original--------------
 
   acquire(&log.lock);
   log.outstanding -= 1;
@@ -201,28 +218,66 @@ static int
 commit()
 {
   int flushed_num = 0;
+  int no_ref_n;
+  int ref_n;
+  int no_ref_blocks[LOGSIZE];
+  int ref_blocks[LOGSIZE];
+  int i;
 
+  //--------- buffer flush call from begin_op -------------
+  // while (1) {
+  //   if (log.committing) { // did someone call commit already?
+  //     sleep(&log, &log.lock);
+  //   } else if (log.outstanding > 0) { // no active transaction
+  //     sleep(&log, &log.lock);
+  //   } else {
+  //     break;
+  //   }
+  // }
+  //--------- buffer flush call from begin_op -------------
+
+  //--------- buffer flush call from log_write -------------
   while (1) {
     if (log.committing) { // did someone call commit already?
-      sleep(&log, &log.lock);
-    } else if (log.outstanding > 0) { // no active transaction
       sleep(&log, &log.lock);
     } else {
       break;
     }
   }
+  //--------- buffer flush call from log_write -------------
 
   log.committing = 1;
   release(&log.lock);
 
+  //--------- buffer flush call from begin_op -------------
+  // if (log.lh.n > 0) {
+  //   flushed_num = log.lh.n;
+  //   write_log();     // Write modified blocks from cache to log
+  //   write_head();    // Write header to disk -- the real commit
+  //   install_trans(); // Now install writes to home locations
+  //   log.lh.n = 0;
+  //   write_head();    // Erase the transaction from the log
+  // }
+  //--------- buffer flush call from begin_op -------------
+  
+  //--------- buffer flush call from log_write -------------
   if (log.lh.n > 0) {
-    flushed_num = log.lh.n;
-    write_log();     // Write modified blocks from cache to log
-    write_head();    // Write header to disk -- the real commit
-    install_trans(); // Now install writes to home locations
+    bfind_noref_dirty(log.lh.n, log.lh.block, no_ref_blocks, ref_blocks, &no_ref_n, &ref_n);
+    for (i = 0; i < no_ref_n; i++) {
+      log.lh.block[i] = no_ref_blocks[i];
+    }
+    log.lh.n = no_ref_n;
+    write_log();
+    write_head();
+    install_trans();
     log.lh.n = 0;
-    write_head();    // Erase the transaction from the log
+    write_head();
+    for (i = 0; i < ref_n; i++) {
+      log.lh.block[i] = ref_blocks[i];
+    }
+    log.lh.n = ref_n;
   }
+  //--------- buffer flush call from log_write --------------
 
   acquire(&log.lock);
   log.committing = 0;
@@ -255,9 +310,28 @@ log_write(struct buf *b)
 {
   int i;
 
-  if (log.lh.n >= LOGSIZE || log.lh.n >= log.size - 1) {
-    panic("too big a transaction"); 
+  //--------- buffer flush call from begin_op -------------
+  // if (log.lh.n >= LOGSIZE || log.lh.n >= log.size - 1) {
+  //   panic("too big a transaction"); 
+  // }
+  //--------- buffer flush call from begin_op -------------
+
+  //--------- buffer flush call from log_write -------------
+  acquire(&log.lock);
+  while (1) {
+    if (log.committing) { // did someone call commit already?
+      sleep(&log, &log.lock);
+    } else {
+      break;
+    }
   }
+  release(&log.lock);
+
+  if (log.lh.n >= LOGSIZE - 3 || log.lh.n >= log.size - 4) {
+    commit_wrapper();
+  }
+  //--------- buffer flush call from log_write -------------
+
   if (log.outstanding < 1)
     panic("log_write outside of trans");
 

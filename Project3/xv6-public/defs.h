@@ -15,6 +15,7 @@ void            binit(void);
 struct buf*     bread(uint, uint);
 void            brelse(struct buf*);
 void            bwrite(struct buf*);
+void            bfind_noref_dirty(int n, int* lh_blocks, int* no_ref, int* ref, int* no_ref_n, int* ref_n);
 
 // console.c
 void            consoleinit(void);

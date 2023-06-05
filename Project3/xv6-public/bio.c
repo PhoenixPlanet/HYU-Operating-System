@@ -109,6 +109,32 @@ bget(uint dev, uint blockno)
   panic("bget: no buffers");
 }
 
+static int is_noref(int target) {
+  struct buf *b;
+
+  for(b = bcache.buf; b < bcache.buf+NBUF; b++){
+    if (b->refcnt == 0 && b->blockno == target) {
+      return 1;
+    }
+  }
+
+  return 0;
+}
+
+void bfind_noref_dirty(int n, int* lh_blocks, int* no_ref, int* ref, int* no_ref_n, int* ref_n) {
+  int i;
+  *no_ref_n = 0;
+  *ref_n = 0;
+
+  for (i = 0; i < n; i++) {
+    if (is_noref(lh_blocks[i])) {
+      no_ref[(*no_ref_n)++] = lh_blocks[i];
+    } else {
+      ref[(*ref_n)++] = lh_blocks[i];
+    }
+  }
+}
+
 // Return a locked buf with the contents of the indicated block.
 struct buf*
 bread(uint dev, uint blockno)
