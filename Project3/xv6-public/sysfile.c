@@ -315,12 +315,29 @@ symbolic_to_target(struct inode* sym_ip) {
   return real_ip;
 }
 
+#define MAX_SYMBOLIC_DEPTH 20
+
+static int
+contain_item(int* arr, int target, int n) {
+  int i = 0;
+
+  for (i = 0; i < n; i++) {
+    if (arr[i] == target) {
+      return TRUE;
+    }
+  }
+  return FALSE;
+}
+
 int
 sys_symbolic_link(void) {
   char *new, *old;
   char real_path[PATHSIZ];
-  struct inode *ip, *sym_ip, *other;
+  // struct inode *ip, *sym_ip, *other;
+  struct inode* sym_ip;
   int real_path_len;
+  // int sym_list[MAX_SYMBOLIC_DEPTH];
+  // int sym_depth = 0;
 
   if(argstr(0, &old) < 0 || argstr(1, &new) < 0) {
     return -1;
@@ -332,35 +349,47 @@ sys_symbolic_link(void) {
   real_path_len = strlen(real_path) + 1;
 
   begin_op();
-  if((ip = namei(real_path)) == 0){
-    end_op();
-    return -1;
-  }
+  // if((ip = namei(real_path)) == 0){
+  //   end_op();
+  //   return -1;
+  // }
 
-  ilock(ip);
-  if(ip->type == T_DIR){
-    iunlockput(ip);
-    end_op();
-    return -1;
-  } else if (ip->type == T_SYM) {
-    while (ip->type == T_SYM) {
-      if ((other = symbolic_to_target(ip)) == 0) {
-        iunlockput(ip);
-        end_op();
-        return -1;
-      }
-      iunlockput(ip);
-      ip = other;
-      ilock(ip);
-    }
+  // ilock(ip);
+  // if(ip->type == T_DIR){
+  //   iunlockput(ip);
+  //   end_op();
+  //   return -1;
+  // } else if (ip->type == T_SYM) {
+  //   sym_list[sym_depth++] = ip->inum;
+  //   while (ip->type == T_SYM) {
+  //     if (sym_depth >= MAX_SYMBOLIC_DEPTH) {
+  //       iunlockput(ip);
+  //       end_op();
+  //       return -1;
+  //     }
+  //     if ((other = symbolic_to_target(ip)) == 0) {
+  //       iunlockput(ip);
+  //       end_op();
+  //       return -1;
+  //     }
+  //     iunlockput(ip);
+  //     ip = other;
+  //     ilock(ip);
+  //     if (contain_item(sym_list, ip->inum, sym_depth)) {
+  //       iunlockput(ip);
+  //       end_op();
+  //       return -1;
+  //     }
+  //     sym_list[sym_depth++] = ip->inum;
+  //   }
 
-    if (ip->type == T_DIR) {
-      iunlockput(ip);
-      end_op();
-      return -1;
-    }
-  }
-  iunlockput(ip);
+  //   if (ip->type == T_DIR) {
+  //     iunlockput(ip);
+  //     end_op();
+  //     return -1;
+  //   }
+  // }
+  // iunlockput(ip);
 
   if ((sym_ip = create(new, T_SYM, 0, 0)) == 0) {
     end_op();
@@ -384,8 +413,8 @@ sys_open(void)
   struct file *f;
   struct inode *ip;
   struct inode *real_ip;
-  int sym_path_len;
-  char sym_path[PATHSIZ];
+  int sym_list[MAX_SYMBOLIC_DEPTH];
+  int sym_depth = 0;
 
   if(argstr(0, &path) < 0 || argint(1, &omode) < 0)
     return -1;
@@ -404,20 +433,34 @@ sys_open(void)
       return -1;
     }
     ilock(ip);
+    if (ip->type == T_SYM && omode != O_STAT) {
+      sym_list[sym_depth++] = ip->inum;
+      while(ip->type == T_SYM) {
+        if (sym_depth >= MAX_SYMBOLIC_DEPTH) {
+          iunlockput(ip);
+          end_op();
+          return -1;
+        }
+        if ((real_ip = symbolic_to_target(ip)) == 0) {
+          iunlockput(ip);
+          end_op();
+          return -1;
+        }
+        iunlockput(ip);
+        ip = real_ip;
+        ilock(ip);
+        if (contain_item(sym_list, ip->inum, sym_depth)) {
+          iunlockput(ip);
+          end_op();
+          return -1;
+        }
+        sym_list[sym_depth++] = ip->inum;
+      }
+    }
     if(ip->type == T_DIR && !(omode == O_RDONLY || omode == O_STAT)){
       iunlockput(ip);
       end_op();
       return -1;
-    }
-    if (ip->type == T_SYM && omode != O_STAT) {
-      if ((real_ip = symbolic_to_target(ip)) == 0) {
-        iunlockput(ip);
-        end_op();
-        return -1;
-      }
-      iunlockput(ip);
-      ip = real_ip;
-      ilock(ip);
     }
     if (omode == O_STAT) {
       omode = O_RDONLY;

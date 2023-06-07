@@ -827,13 +827,17 @@ get_inode_path(struct inode* ip, char* result) {
   memset(result, '\0', PATHSIZ);
   path_off = 0;
 
+  ilock(ip);
   if (ip->inum == ROOTINO) {
     *result = '/';
+    iunlock(ip);
     return result;
   }
 
   for (i = 0, target = ip; (i < MAXPATHDEPTH) && (target->inum != ROOTINO); i++, target = parent_ip) {
-    ilock(target);
+    if (target != ip) {
+      ilock(target);
+    }
 
     if ((get_inode_name(target, cur_name, &parent_ip)) == 0) {
       return 0;
@@ -870,28 +874,15 @@ get_inode_path(struct inode* ip, char* result) {
 
 char*
 get_realpath(char* target_path, char* result) {
-  struct inode* ip;
   struct inode* dp;
   char cur_name[DIRSIZ];
   int res_len;
-
-  if ((ip = namei(target_path)) == 0) {
-    return 0;
-  }
-
-  ilock(ip);
-  if (ip->type == T_DIR) {
-    iunlock(ip);
-    if (get_inode_path(ip, result) == 0) {
-      iput(ip);
-      return 0;
-    }
-
-    iput(ip);
+  
+  if (strncmp(target_path, "/", 1) == 0 && strlen(target_path) == 1) {
+    result[0] = '/';
+    result[1] = '\0';
     return result;
   }
-  iunlockput(ip);
-  
   dp = nameiparent(target_path, cur_name);
 
   if (get_inode_path(dp, result) == 0) {

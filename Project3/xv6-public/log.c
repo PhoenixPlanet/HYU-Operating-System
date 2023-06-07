@@ -340,17 +340,21 @@ log_write(struct buf *b)
   //--------- buffer flush call from begin_op -------------
 
   //--------- buffer flush call from log_write -------------
-  // wait_until_commit_finish();
+  wait_until_commit_finish();
 
-  // if (log.lh.n >= LOGSIZE - 3 || log.lh.n >= log.size - 4) {
-  //   commit_wrapper(FALSE);
-  // }
+  if (log.lh.n >= LOGSIZE - 1 || log.lh.n >= log.size - 2) {
+    //cprintf("log has %d blocks\n", log.lh.n);
+    commit_wrapper(FALSE);
+  }
   //--------- buffer flush call from log_write -------------
 
   //--------- buffer flush call from bget -----------
-  if (log.lh.n >= LOGSIZE) {
-    panic("too big a transaction"); 
-  }
+  // wait_until_commit_finish();
+
+  // if (log.lh.n >= LOGSIZE) {
+  //   //panic("too big a transaction");
+  //   commit_wrapper(FALSE); 
+  // }
   //--------- buffer flush call from bget -----------
 
   if (log.outstanding < 1)
