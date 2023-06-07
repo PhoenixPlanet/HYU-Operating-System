@@ -267,7 +267,7 @@ create(char *path, short type, short major, short minor)
   if((ip = dirlookup(dp, name, 0)) != 0){
     iunlockput(dp);
     ilock(ip);
-    if(type == T_FILE && ip->type == T_FILE)
+    if((type == T_FILE && ip->type == T_FILE) || (type == T_SYM && ip->type == T_SYM))
       return ip;
     iunlockput(ip);
     return 0;
@@ -298,11 +298,28 @@ create(char *path, short type, short major, short minor)
   return ip;
 }
 
+static struct inode*
+symbolic_to_target(struct inode* sym_ip) {
+  struct inode* real_ip;
+  int other_sym_path_len;
+  char other_sym_path[PATHSIZ];
+
+  readi(sym_ip, (char*)&other_sym_path_len, 0, sizeof(int));
+  if (other_sym_path_len <= 0) {
+    return 0;
+  }
+  readi(sym_ip, other_sym_path, sizeof(int), other_sym_path_len);
+  if ((real_ip = namei(other_sym_path)) == 0) {
+    return 0;
+  }
+  return real_ip;
+}
+
 int
 sys_symbolic_link(void) {
   char *new, *old;
   char real_path[PATHSIZ];
-  struct inode *ip, *sym_ip;
+  struct inode *ip, *sym_ip, *other;
   int real_path_len;
 
   if(argstr(0, &old) < 0 || argstr(1, &new) < 0) {
@@ -325,6 +342,23 @@ sys_symbolic_link(void) {
     iunlockput(ip);
     end_op();
     return -1;
+  } else if (ip->type == T_SYM) {
+    while (ip->type == T_SYM) {
+      if ((other = symbolic_to_target(ip)) == 0) {
+        iunlockput(ip);
+        end_op();
+        return -1;
+      }
+      iunlockput(ip);
+      ip = other;
+      ilock(ip);
+    }
+
+    if (ip->type == T_DIR) {
+      iunlockput(ip);
+      end_op();
+      return -1;
+    }
   }
   iunlockput(ip);
 
@@ -376,14 +410,7 @@ sys_open(void)
       return -1;
     }
     if (ip->type == T_SYM && omode != O_STAT) {
-      readi(ip, (char*)&sym_path_len, 0, sizeof(int));
-      if (sym_path_len <= 0) {
-        iunlockput(ip);
-        end_op();
-        return -1;
-      }
-      readi(ip, sym_path, sizeof(int), sym_path_len);
-      if ((real_ip = namei(sym_path)) == 0) {
+      if ((real_ip = symbolic_to_target(ip)) == 0) {
         iunlockput(ip);
         end_op();
         return -1;
