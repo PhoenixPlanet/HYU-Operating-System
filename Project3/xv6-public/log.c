@@ -307,6 +307,18 @@ int commit_wrapper(int sync_all) {
   return n;
 }
 
+void wait_until_commit_finish() {
+  acquire(&log.lock);
+  while (1) {
+    if (log.committing) { // did someone call commit already?
+      sleep(&log, &log.lock);
+    } else {
+      break;
+    }
+  }
+  release(&log.lock);
+}
+
 // Caller has modified b->data and is done with the buffer.
 // Record the block number and pin in the cache with B_DIRTY.
 // commit()/write_log() will do the disk write.
@@ -328,20 +340,18 @@ log_write(struct buf *b)
   //--------- buffer flush call from begin_op -------------
 
   //--------- buffer flush call from log_write -------------
-  acquire(&log.lock);
-  while (1) {
-    if (log.committing) { // did someone call commit already?
-      sleep(&log, &log.lock);
-    } else {
-      break;
-    }
-  }
-  release(&log.lock);
+  // wait_until_commit_finish();
 
-  if (log.lh.n >= LOGSIZE - 3 || log.lh.n >= log.size - 4) {
-    commit_wrapper(FALSE);
-  }
+  // if (log.lh.n >= LOGSIZE - 3 || log.lh.n >= log.size - 4) {
+  //   commit_wrapper(FALSE);
+  // }
   //--------- buffer flush call from log_write -------------
+
+  //--------- buffer flush call from bget -----------
+  if (log.lh.n >= LOGSIZE) {
+    panic("too big a transaction"); 
+  }
+  //--------- buffer flush call from bget -----------
 
   if (log.outstanding < 1)
     panic("log_write outside of trans");

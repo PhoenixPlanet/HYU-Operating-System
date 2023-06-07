@@ -93,6 +93,7 @@ void            log_write(struct buf*);
 void            begin_op();
 void            end_op();
 int             commit_wrapper(int);
+void            wait_until_commit_finish();
 
 // mp.c
 extern int      ismp;
