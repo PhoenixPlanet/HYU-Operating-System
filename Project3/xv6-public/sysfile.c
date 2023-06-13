@@ -317,6 +317,7 @@ symbolic_to_target(struct inode* sym_ip) {
 
 #define MAX_SYMBOLIC_DEPTH 20
 
+// Chech if array contains the target element
 static int
 contain_item(int* arr, int target, int n) {
   int i = 0;
@@ -333,71 +334,28 @@ int
 sys_symbolic_link(void) {
   char *new, *old;
   char real_path[PATHSIZ];
-  // struct inode *ip, *sym_ip, *other;
   struct inode* sym_ip;
   int real_path_len;
-  // int sym_list[MAX_SYMBOLIC_DEPTH];
-  // int sym_depth = 0;
 
   if(argstr(0, &old) < 0 || argstr(1, &new) < 0) {
     return -1;
   }
 
-  if (get_realpath(old, real_path) == 0) {
+  // get absolute path of given argument
+  if (get_realpath(old, real_path) == 0) { 
     return -1;
   }
   real_path_len = strlen(real_path) + 1;
 
   begin_op();
-  // if((ip = namei(real_path)) == 0){
-  //   end_op();
-  //   return -1;
-  // }
 
-  // ilock(ip);
-  // if(ip->type == T_DIR){
-  //   iunlockput(ip);
-  //   end_op();
-  //   return -1;
-  // } else if (ip->type == T_SYM) {
-  //   sym_list[sym_depth++] = ip->inum;
-  //   while (ip->type == T_SYM) {
-  //     if (sym_depth >= MAX_SYMBOLIC_DEPTH) {
-  //       iunlockput(ip);
-  //       end_op();
-  //       return -1;
-  //     }
-  //     if ((other = symbolic_to_target(ip)) == 0) {
-  //       iunlockput(ip);
-  //       end_op();
-  //       return -1;
-  //     }
-  //     iunlockput(ip);
-  //     ip = other;
-  //     ilock(ip);
-  //     if (contain_item(sym_list, ip->inum, sym_depth)) {
-  //       iunlockput(ip);
-  //       end_op();
-  //       return -1;
-  //     }
-  //     sym_list[sym_depth++] = ip->inum;
-  //   }
-
-  //   if (ip->type == T_DIR) {
-  //     iunlockput(ip);
-  //     end_op();
-  //     return -1;
-  //   }
-  // }
-  // iunlockput(ip);
-
-  if ((sym_ip = create(new, T_SYM, 0, 0)) == 0) {
+  if ((sym_ip = create(new, T_SYM, 0, 0)) == 0) { // create T_SYM type file
     end_op();
     return -1;
   }
 
-  writei(sym_ip, (char*)&real_path_len, 0, sizeof(int));
-  writei(sym_ip, real_path, sizeof(int), real_path_len);
+  writei(sym_ip, (char*)&real_path_len, 0, sizeof(int)); // write length of path of target file
+  writei(sym_ip, real_path, sizeof(int), real_path_len); // write path of target file
   iupdate(sym_ip);
   iunlockput(sym_ip);
 
@@ -433,10 +391,10 @@ sys_open(void)
       return -1;
     }
     ilock(ip);
-    if (ip->type == T_SYM && omode != O_STAT) {
+    if (ip->type == T_SYM && omode != O_STAT) { // if the file is symbolic link (if O_STAT: read symbolic link file as a normal file)
       sym_list[sym_depth++] = ip->inum;
       while(ip->type == T_SYM) {
-        if (sym_depth >= MAX_SYMBOLIC_DEPTH) {
+        if (sym_depth >= MAX_SYMBOLIC_DEPTH) { // if the symbolic link chain is longer than 20
           iunlockput(ip);
           end_op();
           return -1;
@@ -449,7 +407,7 @@ sys_open(void)
         iunlockput(ip);
         ip = real_ip;
         ilock(ip);
-        if (contain_item(sym_list, ip->inum, sym_depth)) {
+        if (contain_item(sym_list, ip->inum, sym_depth)) { // if the cycle of symbolic link detected
           iunlockput(ip);
           end_op();
           return -1;
@@ -462,7 +420,7 @@ sys_open(void)
       end_op();
       return -1;
     }
-    if (omode == O_STAT) {
+    if (omode == O_STAT) { // for ls: treat symbolic link file as an normal file which is opened for readonly (don't open the target file)
       omode = O_RDONLY;
     }
   }

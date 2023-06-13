@@ -270,7 +270,7 @@ commit(int sync_all)
       log.lh.n = 0;
       write_head();    // Erase the transaction from the log
     } else {
-      bfind_noref_dirty(log.lh.n, log.lh.block, no_ref_blocks, ref_blocks, &no_ref_n, &ref_n);
+      bfind_noref_dirty(log.lh.n, log.lh.block, no_ref_blocks, ref_blocks, &no_ref_n, &ref_n); // find blocks that ref == 0
       for (i = 0; i < no_ref_n; i++) {
         log.lh.block[i] = no_ref_blocks[i];
       }
@@ -340,7 +340,7 @@ log_write(struct buf *b)
   //--------- buffer flush call from begin_op -------------
 
   //--------- buffer flush call from log_write -------------
-  wait_until_commit_finish();
+  wait_until_commit_finish(); // wait until commit finish
 
   if (log.lh.n >= LOGSIZE - 1 || log.lh.n >= log.size - 2) {
     //cprintf("log has %d blocks\n", log.lh.n);

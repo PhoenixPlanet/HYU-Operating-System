@@ -396,6 +396,7 @@ bmap(struct inode *ip, uint bn)
     return addr;
   }
 
+  // double indirect
   bn -= NINDIRECT;
   if (bn < NDOUBLE_INDIRECT) {
     if ((addr = ip->addrs[NDIRECT + 1]) == 0) {
@@ -420,6 +421,7 @@ bmap(struct inode *ip, uint bn)
     return addr;
   }
 
+  // triple indirect
   bn -= NDOUBLE_INDIRECT;
   if (bn < NTRIPLE_INDIRECT) {
     if ((addr = ip->addrs[NDIRECT + 2]) == 0) {
@@ -486,7 +488,7 @@ itrunc(struct inode *ip)
     ip->addrs[NDIRECT] = 0;
   }
 
-  if (ip->addrs[NDIRECT + 1]) {
+  if (ip->addrs[NDIRECT + 1]) { // free double indirect blocks
     bp = bread(ip->dev, ip->addrs[NDIRECT + 1]);
     a = (uint*)bp->data;
     for (j = 0; j < NINDIRECT; j++) {
@@ -507,7 +509,7 @@ itrunc(struct inode *ip)
     ip->addrs[NDIRECT + 1] = 0;
   }
 
-  if (ip->addrs[NDIRECT + 2]) {
+  if (ip->addrs[NDIRECT + 2]) { // free triple indirect blocks
     bp = bread(ip->dev, ip->addrs[NDIRECT + 2]);
     a = (uint*)bp->data;
     for (j = 0; j < NINDIRECT; j++) {
@@ -778,7 +780,11 @@ nameiparent(char *path, char *name)
 char* parent_dir = "..";
 char* cur_dir = ".";
 
-// caller should call ilock for ip
+/// @brief caller should call ilock for ip. get name of given inode 
+/// @param ip 
+/// @param name 
+/// @param parent_ip 
+/// @return 
 char* 
 get_inode_name(struct inode* ip, char* name, struct inode** parent_ip) {
   struct dirent de;
@@ -816,6 +822,10 @@ get_inode_name(struct inode* ip, char* name, struct inode** parent_ip) {
   return name;
 }
 
+/// @brief get full path of given inode
+/// @param ip 
+/// @param result 
+/// @return 
 char*
 get_inode_path(struct inode* ip, char* result) {
   struct inode* target;
@@ -872,6 +882,10 @@ get_inode_path(struct inode* ip, char* result) {
   return result;
 }
 
+/// @brief try to get absolute path (at least starts with root '/')
+/// @param target_path 
+/// @param result 
+/// @return 
 char*
 get_realpath(char* target_path, char* result) {
   struct inode* dp;
@@ -899,6 +913,7 @@ get_realpath(char* target_path, char* result) {
   return result;
 }
 
+/// @brief get target exec file if the given path is symbolic link file
 struct inode*
 get_exec_inode(char* path) {
   struct inode *ip;
