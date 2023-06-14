@@ -86,16 +86,11 @@ void get_filename_test(char* target) {
   printf(1, "%s\n", real);
 }
 
-// char* test_dir = "test";
-// char* test_dir2 = "test/test2";
-// char* test_file = "symtest.txt";
-// char* test_target = "../test2/./symtest.txt";
-// char* test_link_file = "/test.sym";
-// char* test_link_open_target = "test.sym";
-// char* test_str = "hello symbolic link\n";
+char* test_dir = "test";
+char* test_dir2 = "test/test2";
 char* test_file = "symtest.txt";
-char* test_target = "symtest.txt";
-char* test_link_file = "test.sym";
+char* test_target = "../test2/./symtest.txt";
+char* test_link_file = "/test.sym";
 char* test_link_open_target = "test.sym";
 char* test_str = "hello symbolic link\n";
 
@@ -105,9 +100,9 @@ void symlink_test() {
 
   memset(buf, 0, sizeof(buf));
 
-  // mkdir(test_dir);
-  // mkdir(test_dir2);
-  // chdir(test_dir2);
+  mkdir(test_dir);
+  mkdir(test_dir2);
+  chdir(test_dir2);
 
   fd = open(test_file, O_CREATE | O_WRONLY);
   if(fd < 0){
@@ -124,7 +119,7 @@ void symlink_test() {
 
   symbolic_link(test_target, test_link_file);
 
-  //chdir("/");
+  chdir("/");
 
   fd = open(test_link_open_target, O_RDONLY);
   if(fd < 0){
