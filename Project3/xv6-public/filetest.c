@@ -5,6 +5,8 @@
 #include "fs.h"
 
 #define BIGBLOCK 20000
+#define DOUBLEBLOCK 16384
+#define TRIPLEBLOCK 32768
 #define SMALLBLOCK 30
 
 void
@@ -213,14 +215,24 @@ main(int argc, char *argv[])
 
   if (strcmp(argv[1], "w") == 0) {
     if (strcmp(argv[2], "t") == 0) {
-      write_test("big", SMALLBLOCK, 1);
+      write_test("small", SMALLBLOCK, 1);
     } else if (strcmp(argv[2], "f") == 0) {
-      write_test("big", SMALLBLOCK, 0);
-    }
+      write_test("small", SMALLBLOCK, 0);
+    } else if (strcmp(argv[2], "double") == 0) {
+      write_test("double", DOUBLEBLOCK, 1);
+    } else if (strcmp(argv[2], "triple") == 0) {
+      write_test("triple", TRIPLEBLOCK, 1);
+    } 
   }
 
   if (strcmp(argv[1], "r") == 0) {
-    read_test("big", SMALLBLOCK);
+    if (strcmp(argv[2], "n") == 0) {
+      read_test("small", SMALLBLOCK);
+    } else if (strcmp(argv[2], "double") == 0) {
+      read_test("double", DOUBLEBLOCK);
+    } else if (strcmp(argv[2], "triple") == 0) {
+      read_test("triple", TRIPLEBLOCK);
+    } 
   }
 
   if (strcmp(argv[1], "s") == 0) {
